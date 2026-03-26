@@ -105,6 +105,73 @@ update_system() {
     log_info "System updated successfully"
 }
 
+# Install GNOME Desktop
+install_gnome() {
+    log_info "Installing GNOME Desktop..."
+
+    # Check if already installed
+    if dpkg -l | grep -q "gnome-shell"; then
+        log_warn "GNOME already installed, skipping"
+        return 0
+    fi
+
+    # Install GNOME Desktop and essential packages
+    apt-get install -y \
+        gnome-shell \
+        gnome-session \
+        gnome-terminal \
+        gnome-control-center \
+        gnome-tweaks \
+        gnome-software \
+        ubuntu-desktop \
+        ubuntu-desktop-minimal \
+        nautilus \
+        gdm3
+
+    # Install additional GNOME utilities
+    apt-get install -y \
+        gedit \
+        file-roller \
+        eog \
+        evince
+
+    log_info "GNOME Desktop installed successfully"
+}
+
+# Install and configure xrdp
+install_xrdp() {
+    log_info "Installing and configuring xrdp..."
+
+    # Install xrdp
+    apt-get install -y xrdp
+
+    # Add user to ssl-cert group (required for xrdp)
+    usermod -aG ssl-cert xrdp
+
+    # Configure xrdp to use GNOME
+    if [[ -f /etc/xrdp/xrdp.ini ]]; then
+        # Backup original
+        cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
+
+        # Set GNOME as default session
+        sed -i 's/^name=.*/name=GNOME Session/' /etc/xrdp/xrdp.ini
+        sed -i 's/^command=.*/command=gnome-session/' /etc/xrdp/xrdp.ini
+    fi
+
+    # Enable and start xrdp
+    systemctl enable xrdp
+    systemctl enable xrdp-sesman
+    systemctl restart xrdp
+
+    # Configure firewall (if ufw is active)
+    if command -v ufw &> /dev/null; then
+        ufw allow 3389/tcp comment "Allow RDP"
+    fi
+
+    log_info "xrdp configured successfully"
+    log_info "RDP access: Port 3389"
+}
+
 # Main function
 main() {
     log_info "Starting Remote Desktop Deployment v$SCRIPT_VERSION"
@@ -113,6 +180,8 @@ main() {
     check_root
     detect_ubuntu_version
     update_system
+    install_gnome
+    install_xrdp
 
     log_info "System ready for deployment"
 }
