@@ -393,6 +393,52 @@ EOF
     log_info "OpenRouter CLI installed with default model: minimax2.5"
 }
 
+# Install Chromium Browser
+install_chromium() {
+    log_info "Installing Chromium Browser..."
+
+    # Check if already installed
+    if command -v chromium &> /dev/null || command -v chromium-browser &> /dev/null; then
+        log_warn "Chromium already installed"
+        return 0
+    fi
+
+    # Also check for Google Chrome as fallback
+    if command -v google-chrome &> /dev/null || command -v google-chrome-stable &> /dev/null; then
+        log_warn "Google Chrome already installed"
+        return 0
+    fi
+
+    # Try to install Chromium from Ubuntu repositories
+    if apt-get install -y chromium-browser 2>/dev/null; then
+        log_info "Chromium installed from Ubuntu repositories"
+        return 0
+    fi
+
+    # Fallback: install Google Chrome if Chromium unavailable
+    log_info "Chromium not available, installing Google Chrome..."
+
+    # Add Google Chrome repository
+    if ! wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg 2>/dev/null; then
+        log_error "Failed to add Google Chrome GPG key"
+        return 1
+    fi
+
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
+
+    if ! apt-get update -y; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+
+    if ! apt-get install -y google-chrome-stable; then
+        log_error "Failed to install Google Chrome"
+        return 1
+    fi
+
+    log_info "Browser installed successfully"
+}
+
 # Main function
 main() {
     log_info "Starting Remote Desktop Deployment v$SCRIPT_VERSION"
@@ -407,6 +453,7 @@ main() {
     install_claude_code
     configure_claude_openrouter
     install_openrouter
+    install_chromium
 
     log_info "System ready for deployment"
 }
