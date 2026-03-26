@@ -280,11 +280,14 @@ configure_claude_openrouter() {
     # Create Claude Code config directory
     mkdir -p ~/.config/claude
 
-    # Check if API key is provided via environment variable
+    # Determine API key to use
+    local api_key=""
     if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-        log_info "OpenRouter API key found in environment"
+        api_key="$OPENROUTER_API_KEY"
+        log_info "Using OpenRouter API key from environment"
     elif [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-        log_info "Anthropic API key found in environment"
+        api_key="$ANTHROPIC_API_KEY"
+        log_info "Using Anthropic API key from environment"
     else
         log_warn "No API key found - Claude Code will need manual configuration"
         log_warn "Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY environment variable"
@@ -292,12 +295,22 @@ configure_claude_openrouter() {
 
     # Configure OpenRouter as API provider
     # Create Claude Code settings with OpenRouter endpoint
-    cat > ~/.config/claude/settings.json << 'EOF'
+    if [[ -n "$api_key" ]]; then
+        cat > ~/.config/claude/settings.json << EOF
+{
+  "apiKey": "$api_key",
+  "apiUrl": "https://openrouter.ai/api/v1"
+}
+EOF
+        log_info "API key configured in settings.json"
+    else
+        cat > ~/.config/claude/settings.json << 'EOF'
 {
   "apiKey": "",
   "apiUrl": "https://openrouter.ai/api/v1"
 }
 EOF
+    fi
 
     # Create environment setup script for OpenRouter
     cat > ~/.config/claude/openrouter-env.sh << 'EOF'
@@ -307,10 +320,17 @@ EOF
 # Set OpenRouter as the API endpoint
 export ANTHROPIC_API_BASE="https://openrouter.ai/api/v1"
 
-# Set your API key (replace with your actual key)
+# Set your API key (replace with your actual key or use environment variable)
 # export OPENROUTER_API_KEY="your_api_key_here"
 # export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"
 EOF
+
+    # Add to .bashrc if not already present
+    local bashrc_entry='[[ -f ~/.config/claude/openrouter-env.sh ]] && source ~/.config/claude/openrouter-env.sh'
+    if ! grep -q "openrouter-env.sh" ~/.bashrc 2>/dev/null; then
+        echo "$bashrc_entry" >> ~/.bashrc
+        log_info "Added OpenRouter environment to ~/.bashrc"
+    fi
 
     log_info "Claude Code OpenRouter configuration complete"
 }
