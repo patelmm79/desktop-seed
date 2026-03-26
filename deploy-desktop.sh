@@ -208,6 +208,39 @@ EOF
     log_info "RDP access: Port 3389"
 }
 
+# Install Visual Studio Code
+install_vscode() {
+    log_info "Installing Visual Studio Code..."
+
+    # Check if already installed
+    if command -v code &> /dev/null; then
+        log_warn "VS Code already installed, version: $(code --version | head -1)"
+        return 0
+    fi
+
+    # Add Microsoft GPG key
+    if ! wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | apt-key add -; then
+        log_error "Failed to add Microsoft GPG key"
+        return 1
+    fi
+
+    # Add VS Code repository
+    echo "deb [arch=amd64] https://packages.microsoft.com/repos/code stable main" | tee /etc/apt/sources.list.d/vscode.list > /dev/null
+
+    # Update and install
+    if ! apt-get update -y; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+
+    if ! apt-get install -y code; then
+        log_error "Failed to install VS Code"
+        return 1
+    fi
+
+    log_info "VS Code installed successfully"
+}
+
 # Main function
 main() {
     log_info "Starting Remote Desktop Deployment v$SCRIPT_VERSION"
@@ -218,6 +251,7 @@ main() {
     update_system
     install_gnome
     install_xrdp
+    install_vscode
 
     log_info "System ready for deployment"
 }
