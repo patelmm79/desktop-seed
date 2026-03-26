@@ -110,13 +110,13 @@ install_gnome() {
     log_info "Installing GNOME Desktop..."
 
     # Check if already installed
-    if dpkg -l | grep -q "gnome-shell"; then
+    if dpkg -l gnome-shell 2>/dev/null | grep -q "^ii"; then
         log_warn "GNOME already installed, skipping"
         return 0
     fi
 
     # Install GNOME Desktop and essential packages
-    apt-get install -y \
+    if ! apt-get install -y \
         gnome-shell \
         gnome-session \
         gnome-terminal \
@@ -126,14 +126,20 @@ install_gnome() {
         ubuntu-desktop \
         ubuntu-desktop-minimal \
         nautilus \
-        gdm3
+        gdm3; then
+        log_error "Failed to install GNOME Desktop packages"
+        return 1
+    fi
 
     # Install additional GNOME utilities
-    apt-get install -y \
+    if ! apt-get install -y \
         gedit \
         file-roller \
         eog \
-        evince
+        evince; then
+        log_error "Failed to install GNOME utilities"
+        return 1
+    fi
 
     log_info "GNOME Desktop installed successfully"
 }
@@ -143,19 +149,23 @@ install_xrdp() {
     log_info "Installing and configuring xrdp..."
 
     # Install xrdp
-    apt-get install -y xrdp
-
-    # Add user to ssl-cert group (required for xrdp)
-    usermod -aG ssl-cert xrdp
-
-    # Configure xrdp to use GNOME
-    if [[ -f /etc/xrdp/xrdp.ini ]]; then
-        # Backup original
-        cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
+    if ! apt-get install -y xrdp; then
+        log_error "Failed to install xrdp"
+        return 1
     fi
 
-    # Create custom start script for GNOME
-    cat > /etc/xrdp/startwm.sh << 'EOF'
+    # Add user to ssl-cert group (required for xrdp)
+    if ! usermod -aG ssl-cert xrdp 2>/dev/null; then
+        log_warn "Could not add xrdp user to ssl-cert group (may already exist)"
+    fi
+
+    # Backup original xrdp.ini
+    if [[ -f /etc/xrdp/xrdp.ini ]]; then
+        cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak || log_warn "Could not backup xrdp.ini"
+    fi
+
+    # Configure xrdp to use GNOME via custom start script
+    if ! cat > /etc/xrdp/startwm.sh << 'EOF'
 #!/bin/sh
 # xrdp GNOME session script
 
@@ -166,6 +176,10 @@ fi
 # Start GNOME session
 exec /usr/bin/gnome-session
 EOF
+    then
+        log_error "Failed to create startwm.sh"
+        return 1
+    fi
 
     # Make it executable
     chmod +x /etc/xrdp/startwm.sh
@@ -173,11 +187,21 @@ EOF
     # Enable and start xrdp
     systemctl enable xrdp
     systemctl enable xrdp-sesman
-    systemctl restart xrdp
+
+    if ! systemctl restart xrdp; then
+        log_error "Failed to start xrdp service"
+        return 1
+    fi
+
+    # Verify xrdp is running
+    if ! systemctl is-active --quiet xrdp; then
+        log_error "xrdp service is not running after restart"
+        return 1
+    fi
 
     # Configure firewall (if ufw is active)
     if command -v ufw &> /dev/null; then
-        ufw allow 3389/tcp comment "Allow RDP"
+        ufw allow 3389/tcp comment "Allow RDP" 2>/dev/null || log_warn "Could not configure firewall"
     fi
 
     log_info "xrdp configured successfully"
