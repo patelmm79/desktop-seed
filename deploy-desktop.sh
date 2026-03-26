@@ -495,18 +495,23 @@ Name=Claude Code
 Comment=AI Assistant
 Exec=gnome-terminal -- claude
 Icon=utilities-terminal
-Terminal=false
+Terminal=true
 Categories=Development;AI;
 EOF
 
-    # Chromium shortcut
-    cat > "$desktop_dir/Chromium.desktop" << 'EOF'
+    # Chromium/Chrome shortcut - check which is installed
+    local browser_exec="chromium-browser"
+    if ! command -v chromium-browser &> /dev/null; then
+        browser_exec="google-chrome-stable"
+    fi
+
+    cat > "$desktop_dir/Chromium.desktop" << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Chromium Browser
 Comment=Web Browser
-Exec=chromium-browser
+Exec=$browser_exec
 Icon=chromium-browser
 Terminal=false
 Categories=Network;WebBrowser;
