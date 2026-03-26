@@ -53,6 +53,32 @@ detect_ubuntu_version() {
     fi
 }
 
+# Update package lists and upgrade system
+update_system() {
+    log_info "Updating package lists and upgrading system..."
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Update package lists
+    apt-get update -y
+
+    # Upgrade existing packages
+    apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+
+    # Install essential dependencies
+    apt-get install -y \
+        curl \
+        wget \
+        gnupg2 \
+        software-properties-common \
+        apt-transport-https \
+        ca-certificates \
+        lsb-release \
+        jq
+
+    log_info "System updated successfully"
+}
+
 # Main function
 main() {
     log_info "Starting Remote Desktop Deployment v$SCRIPT_VERSION"
@@ -60,6 +86,7 @@ main() {
 
     check_root
     detect_ubuntu_version
+    update_system
 
     log_info "System ready for deployment"
 }
