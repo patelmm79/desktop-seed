@@ -439,6 +439,116 @@ install_chromium() {
     log_info "Browser installed successfully"
 }
 
+# Set up environment variables and system-wide configuration
+setup_environment() {
+    log_info "Setting up environment variables..."
+
+    # Create environment file for desktop applications
+    cat > /etc/profile.d/remote-desktop.sh << 'EOF'
+# Remote Desktop Environment Configuration
+
+# Claude Code configuration
+export ANTHROPIC_API_BASE="${ANTHROPIC_API_BASE:-https://openrouter.ai/api/v1}"
+export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}"
+
+# Editor configuration
+export EDITOR=gedit
+export VISUAL=gedit
+
+# Desktop environment hints
+export XDG_CURRENT_DESKTOP=GNOME
+export XDG_SESSION_TYPE=x11
+EOF
+
+    # Make it executable
+    chmod +x /etc/profile.d/remote-desktop.sh
+
+    log_info "Environment configured"
+}
+
+# Create desktop shortcuts for installed applications
+create_desktop_shortcuts() {
+    log_info "Creating desktop shortcuts..."
+
+    local desktop_dir="$HOME/Desktop"
+    mkdir -p "$desktop_dir"
+
+    # VS Code shortcut
+    cat > "$desktop_dir/VS Code.desktop" << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Visual Studio Code
+Comment=Code Editor
+Exec=code
+Icon=code
+Terminal=false
+Categories=Development;IDE;
+EOF
+
+    # Claude Code shortcut (terminal-based)
+    cat > "$desktop_dir/Claude Code.desktop" << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Claude Code
+Comment=AI Assistant
+Exec=gnome-terminal -- claude
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;AI;
+EOF
+
+    # Chromium shortcut
+    cat > "$desktop_dir/Chromium.desktop" << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Chromium Browser
+Comment=Web Browser
+Exec=chromium-browser
+Icon=chromium-browser
+Terminal=false
+Categories=Network;WebBrowser;
+EOF
+
+    # Make shortcuts executable
+    chmod +x "$desktop_dir"/*.desktop
+
+    log_info "Desktop shortcuts created"
+}
+
+# Display post-installation summary
+show_summary() {
+    log_info "========================================="
+    log_info "  Remote Desktop Deployment Complete!"
+    log_info "========================================="
+    log_info ""
+    log_info "Installed Components:"
+    log_info "  - GNOME Desktop"
+    log_info "  - xrdp (RDP server on port 3389)"
+    log_info "  - Visual Studio Code"
+    log_info "  - Claude Code"
+    log_info "  - OpenRouter CLI (default model: minimax2.5)"
+    log_info "  - Chromium Browser"
+    log_info ""
+    log_info "Connection Information:"
+    log_info "  - RDP Port: 3389"
+    log_info "  - From Windows: Use Microsoft Remote Desktop"
+    log_info "  - From Android: Use Microsoft Remote Desktop app"
+    log_info ""
+    log_info "To connect:"
+    log_info "  1. Ensure port 3389 is open in firewall"
+    log_info "  2. Use RDP client to connect to this machine's IP"
+    log_info "  3. Login with your Ubuntu username/password"
+    log_info ""
+    log_info "Environment Variables (set before running Claude Code):"
+    log_info "  export OPENROUTER_API_KEY=your_api_key_here"
+    log_info ""
+    log_info "Log file: $LOG_FILE"
+    log_info "========================================="
+}
+
 # Main function
 main() {
     log_info "Starting Remote Desktop Deployment v$SCRIPT_VERSION"
@@ -454,6 +564,9 @@ main() {
     configure_claude_openrouter
     install_openrouter
     install_chromium
+    setup_environment
+    create_desktop_shortcuts
+    show_summary
 
     log_info "System ready for deployment"
 }
