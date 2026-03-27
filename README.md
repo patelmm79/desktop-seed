@@ -259,6 +259,33 @@ sudo bash deploy-desktop.sh
 sudo bash tests/validate-install.sh
 ```
 
+## Why This Approach?
+
+Most existing solutions for remote Linux desktops require complex infrastructure:
+
+- **Ansible/Terraform** - Great for infrastructure, but overkill for personal desktop setup
+- **Docker/containers** - Adds complexity without benefit for a desktop environment
+- **NoMachine/Guacamole** - Browser-based alternatives, but different use cases
+
+This project takes a simpler path:
+
+| Aspect | This Project | Typical Alternatives |
+|--------|--------------|---------------------|
+| **Dependencies** | Just bash + standard Linux tools | Requires Ansible, Terraform, Docker |
+| **Code size** | Single ~600 line script | Hundreds/thousands of lines across multiple files |
+| **Auditability** | Read one file, understand everything | Must understand multiple tools and their configs |
+| **Flexibility** | Edit one config file to add components | Learn new syntax for each tool |
+| **Test scaling** | Automatic - test uses same config | Must write new test code for each component |
+
+This isn't a limitation—it's the design philosophy. For personal or team use, the ability to quickly audit, modify, and understand your deployment script matters more than enterprise-grade complexity.
+
+### Related Tools
+
+These exist in related spaces but solve different problems:
+- **Apache Guacamole** - Browser-based remote desktop (no client needed)
+- **NoMachine** - Commercial remote desktop with more features
+- **TurnKey Linux** - Pre-configured server images (no desktop focus)
+
 ## Security Considerations
 
 - **Firewall:** The script opens port 3389 (RDP). Consider restricting to specific IPs.
