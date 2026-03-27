@@ -299,6 +299,22 @@ These exist in related spaces but solve different problems:
 - **API Keys:** Store your OpenRouter API key securely. The script writes it to `~/.config/claude/settings.json`.
 - **Strong Passwords:** Use strong passwords for your Ubuntu user account.
 - **Updates:** Keep the server updated with `sudo apt update && sudo apt upgrade`.
+- **Non-Root User:** Many desktop applications (VS Code, Chromium) refuse to run as root. Create a non-root user for daily RDP access:
+
+```bash
+# Create non-root user for desktop
+sudo adduser --gecos 'Desktop User' your_username
+sudo usermod -aG sudo,adm,cdrom,dip,plugdev your_username
+
+# Copy desktop configs and shortcuts
+cp -r /root/Desktop /home/your_username/
+sudo chown -R your_username:your_username /home/your_username/Desktop
+
+# Set a strong password
+sudo passwd your_username
+```
+
+Then reconnect via RDP using the non-root username and password instead of root.
 
 ## Maintenance Scripts
 
