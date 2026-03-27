@@ -489,13 +489,22 @@ EOF
 configure_mcp_servers() {
     log_info "Configuring MCP servers..."
 
-    # MCP servers are defined via CLAUDE_MCP_SERVERS env variable
-    # Format: "name:transport:url,name2:transport2:url2"
-    # Example: "figma:http:https://mcp.figma.com/mcp,sentry:http:https://mcp.sentry.dev/mcp"
-    local mcp_servers="${CLAUDE_MCP_SERVERS:-}"
+    # MCP servers can be configured via:
+    # 1. CLAUDE_MCP_SERVERS environment variable (passed to script)
+    # 2. ~/.config/desktop-seed/mcp-servers file (one per line: name:transport:url)
+
+    local mcp_servers=""
+
+    # First check env variable
+    if [[ -n "${CLAUDE_MCP_SERVERS:-}" ]]; then
+        mcp_servers="$CLAUDE_MCP_SERVERS"
+    # Then check config file
+    elif [[ -f "$HOME/.config/desktop-seed/mcp-servers" ]]; then
+        mcp_servers=$(tr '\n' ',' < "$HOME/.config/desktop-seed/mcp-servers" | sed 's/,$//')
+    fi
 
     if [[ -z "$mcp_servers" ]]; then
-        log_info "No MCP servers configured (set CLAUDE_MCP_SERVERS to add)"
+        log_info "No MCP servers configured (set CLAUDE_MCP_SERVERS or create ~/.config/desktop-seed/mcp-servers)"
         return 0
     fi
 
