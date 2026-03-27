@@ -259,7 +259,7 @@ install_claude_code() {
 
     # Download and run the official Claude Code installer
     # Using the official installer script from Anthropic
-    if ! curl -sSfL https://docs.anthropic.com/claude-code/installer.sh | sh; then
+    if ! curl -sSfL https://docs.anthropic.com/claude-code/installer.sh | bash; then
         log_error "Failed to install Claude Code"
         return 1
     fi
