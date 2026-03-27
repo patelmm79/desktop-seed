@@ -32,7 +32,7 @@ COMPONENTS[claude_required]="true"
 
 # OpenRouter CLI
 COMPONENTS[openrouter_name]="OpenRouter CLI"
-COMPONENTS[openrouter_check]="command -v openrouter &> /dev/null"
+COMPONENTS[openrouter_check]="command -v orc &> /dev/null || command -v openrouter &> /dev/null"
 COMPONENTS[openrouter_required]="false"
 
 # Chromium Browser

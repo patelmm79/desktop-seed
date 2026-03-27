@@ -358,8 +358,8 @@ EOF
 install_openrouter() {
     log_info "Installing OpenRouter CLI..."
 
-    # Check if already installed
-    if command -v openrouter &> /dev/null; then
+    # Check if already installed (package provides 'orc' command)
+    if command -v orc &> /dev/null || command -v openrouter &> /dev/null; then
         log_warn "OpenRouter CLI already installed"
         return 0
     fi
@@ -390,13 +390,13 @@ install_openrouter() {
     fi
 
     # Install OpenRouter CLI (with proper error handling)
-    if ! npm install -g openrouter 2>&1; then
+    if ! npm install -g openrouter-cli 2>&1; then
         log_error "Failed to install OpenRouter CLI"
         return 1
     fi
 
     # Verify installation
-    if ! command -v openrouter &> /dev/null; then
+    if ! command -v orc &> /dev/null && ! command -v openrouter &> /dev/null; then
         log_error "OpenRouter CLI installation failed"
         return 1
     fi
