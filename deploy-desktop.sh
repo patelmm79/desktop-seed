@@ -254,12 +254,31 @@ install_claude_code() {
         return 0
     fi
 
-    # Create installation directory
-    mkdir -p ~/.local/bin
+    # Ensure Node.js and npm are available
+    if ! command -v node &> /dev/null; then
+        log_info "Installing Node.js..."
+        if ! apt-get install -y nodejs npm 2>/dev/null; then
+            # Fallback to NodeSource if Ubuntu repos fail
+            log_info "Using NodeSource for Node.js..."
+            if ! curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
+                log_error "Failed to setup NodeSource repository"
+                return 1
+            fi
+            if ! apt-get install -y nodejs npm; then
+                log_error "Failed to install Node.js"
+                return 1
+            fi
+        fi
+    fi
 
-    # Download and run the official Claude Code installer
-    # Using the official installer script from Anthropic
-    if ! curl -sSfL https://docs.anthropic.com/claude-code/installer.sh | bash; then
+    # Verify npm is available
+    if ! command -v npm &> /dev/null; then
+        log_error "npm not available"
+        return 1
+    fi
+
+    # Install Claude Code via npm
+    if ! npm install -g @anthropic-ai/claude-code 2>&1; then
         log_error "Failed to install Claude Code"
         return 1
     fi
