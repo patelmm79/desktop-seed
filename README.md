@@ -229,11 +229,34 @@ sudo bash tests/validate-install.sh
 ```
 .
 ├── deploy-desktop.sh         # Main deployment script
+├── config.sh                 # Shared component configuration (declarative)
 ├── tests/
 │   └── validate-install.sh  # Post-installation validation
 ├── docs/
-│   └── usage-guide.md       # Detailed usage documentation
+│   ├── usage-guide.md       # Detailed usage documentation
+│   └── ssh-setup-guide.md   # SSH setup guide for Windows
 └── README.md                # This file
+```
+
+## How It Works
+
+### Component-Based Design
+
+Components are declared in `config.sh` with their verification method. Both the deployment script and validation script source this file:
+
+- **Deploy**: Loops through components and installs each one
+- **Test**: Loops through same components and verifies each one
+
+This means adding new components to deploy requires only adding an entry to `config.sh` - the test automatically validates it.
+
+### Verification
+
+```bash
+# Run deployment
+sudo bash deploy-desktop.sh
+
+# Validate (automatically checks all components)
+sudo bash tests/validate-install.sh
 ```
 
 ## Security Considerations

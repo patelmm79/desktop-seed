@@ -31,7 +31,9 @@ sudo bash tests/validate-install.sh
 
 ## Architecture
 
-The deployment script is a **modular bash script** with ~570 lines organized into functions:
+The deployment script is a **modular bash script** with ~600 lines organized into functions. Components are declared in `config.sh` for both deployment and validation.
+
+### Key Functions
 
 - **System functions**: `check_root()`, `detect_ubuntu_version()`, `update_system()`
 - **Desktop functions**: `install_gnome()`, `install_xrdp()`
@@ -40,13 +42,24 @@ The deployment script is a **modular bash script** with ~570 lines organized int
 
 Each function is idempotent - it checks if a component is already installed before proceeding.
 
+### Component Configuration (config.sh)
+
+Components are declared in `config.sh` with:
+- Display name
+- Verification command (how to check if installed)
+- Required flag (whether failure should stop deployment)
+
+Both `deploy-desktop.sh` and `tests/validate-install.sh` source this file. When adding new components, just update `config.sh` - no test code changes needed.
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `deploy-desktop.sh` | Main deployment script |
-| `tests/validate-install.sh` | Post-deployment validation |
+| `config.sh` | Shared component configuration (declarative list of components with verification methods) |
+| `tests/validate-install.sh` | Post-deployment validation (sources config.sh automatically) |
 | `docs/usage-guide.md` | Detailed user documentation |
+| `docs/ssh-setup-guide.md` | SSH setup guide for Windows |
 
 ## Important Implementation Details
 
