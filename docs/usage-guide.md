@@ -31,6 +31,28 @@
 - Launch: Click "Chromium" desktop shortcut or type `chromium-browser`
 - Access from menu: Applications > Internet > Chromium Web Browser
 
+### GitHub CLI
+- Run: `gh` in terminal
+- First-time setup requires authentication (see below)
+
+## GitHub CLI Authentication
+
+1. Authenticate with GitHub:
+   ```bash
+   gh auth login
+   ```
+
+2. Select options:
+   - GitHub.com
+   - HTTPS
+   - Login with a web browser
+   - Copy the one-time code and paste in browser
+
+3. List your repositories:
+   ```bash
+   gh repo list
+   ```
+
 ## API Key Configuration
 
 ### For Claude Code with OpenRouter:

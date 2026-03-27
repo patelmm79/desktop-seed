@@ -55,6 +55,11 @@ COMPONENTS[mcp_name]="MCP Servers"
 COMPONENTS[mcp_check]="[[ -f \"\$HOME/.config/desktop-seed/mcp-servers\" ]] && [[ -s \"\$HOME/.config/desktop-seed/mcp-servers\" ]]"
 COMPONENTS[mcp_required]="false"
 
+# GitHub CLI
+COMPONENTS[ghcli_name]="GitHub CLI"
+COMPONENTS[ghcli_check]="command -v gh &> /dev/null"
+COMPONENTS[ghcli_required]="false"
+
 # Get list of component keys
 get_component_keys() {
     local keys=()

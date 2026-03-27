@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(bash -n C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh)"
     ]
   }
 }

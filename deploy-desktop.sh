@@ -596,6 +596,63 @@ install_chromium() {
     log_info "Browser installed successfully"
 }
 
+# Install GitHub CLI
+install_ghcli() {
+    log_info "Installing GitHub CLI..."
+
+    # Check if already installed
+    if command -v gh &> /dev/null; then
+        local current_version
+        current_version=$(gh --version 2>/dev/null | head -1)
+        log_warn "GitHub CLI already installed: $current_version"
+        return 0
+    fi
+
+    local ghcli_repo_added=false
+    local gh_version=""
+
+    # Try to add official GitHub CLI repository
+    log_info "Adding GitHub CLI official repository..."
+    if wget -q -O - https://cli.github.com/packages/githubcli-archive-keyring.gpg 2>&1 | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null; then
+        if echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null; then
+            ghcli_repo_added=true
+            log_info "GitHub CLI repository added successfully"
+        else
+            log_warn "Failed to configure GitHub CLI repository source"
+        fi
+    else
+        log_warn "Failed to download GitHub CLI GPG key (network issue?)"
+    fi
+
+    # Update package lists
+    if ! apt-get update -y 2>&1 | grep -q "Err\|Failed\|WARN"; then
+        log_info "Package lists updated"
+    else
+        log_warn "Some package update warnings occurred"
+    fi
+
+    # Install GitHub CLI
+    if ! apt-get install -y gh 2>&1; then
+        log_error "Failed to install GitHub CLI"
+        return 1
+    fi
+
+    # Verify installation and get version
+    if command -v gh &> /dev/null; then
+        gh_version=$(gh --version 2>/dev/null | head -1)
+        log_info "GitHub CLI installed successfully: $gh_version"
+
+        # Check if we got the official version or fell back to Ubuntu repo
+        if [[ "$gh_version" == *"2.45"* ]]; then
+            log_warn "Installed from Ubuntu repo (v2.45.0). Official repo version is newer (2.86+)"
+            log_warn "To upgrade: run the same deploy-desktop.sh script after fixing network access to cli.github.com"
+        fi
+    else
+        log_error "GitHub CLI installed but 'gh' command not found"
+        return 1
+    fi
+}
+
 # Set up environment variables and system-wide configuration
 setup_environment() {
     log_info "Setting up environment variables..."
@@ -804,6 +861,7 @@ main() {
     install_openrouter
     install_claude_code_router
     install_chromium
+    install_ghcli
     setup_environment
     configure_mcp_servers
     create_desktop_shortcuts

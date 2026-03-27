@@ -37,7 +37,7 @@ The deployment script is a **modular bash script** with ~600 lines organized int
 
 - **System functions**: `check_root()`, `detect_ubuntu_version()`, `update_system()`
 - **Desktop functions**: `install_gnome()`, `install_xrdp()`
-- **Application functions**: `install_vscode()`, `install_claude_code()`, `configure_claude_openrouter()`, `install_openrouter()`, `install_chromium()`
+- **Application functions**: `install_vscode()`, `install_claude_code()`, `configure_claude_openrouter()`, `install_openrouter()`, `install_chromium()`, `install_ghcli()`
 - **Final functions**: `setup_environment()`, `create_desktop_shortcuts()`, `show_summary()`
 
 Each function is idempotent - it checks if a component is already installed before proceeding.
