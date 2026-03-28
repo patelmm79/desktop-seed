@@ -182,9 +182,9 @@ EOF
 install_xrdp() {
     log_info "Installing and configuring xrdp..."
 
-    # Install xrdp
-    if ! apt-get install -y xrdp; then
-        log_error "Failed to install xrdp"
+    # Install xrdp and required display server
+    if ! apt-get install -y xrdp xvfb tigervnc-standalone-server; then
+        log_error "Failed to install xrdp and display servers"
         return 1
     fi
 
@@ -198,10 +198,44 @@ install_xrdp() {
         cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak || log_warn "Could not backup xrdp.ini"
     fi
 
+    # Create minimal Xorg configuration for xrdp (uses dummy driver for virtual display)
+    if ! cat > /etc/xrdp/xorg.conf << 'EOF'
+# Minimal X11 configuration for xrdp
+# Uses the dummy driver for virtual display
+
+Section "Monitor"
+    Identifier "Monitor0"
+    HorizSync 31.5-37.9
+    VertRefresh 50-70
+EndSection
+
+Section "Device"
+    Identifier "Card0"
+    Driver "dummy"
+    VideoRam 256000
+EndSection
+
+Section "Screen"
+    Identifier "Screen0"
+    Device "Card0"
+    Monitor "Monitor0"
+    DefaultDepth 24
+    SubSection "Display"
+        Depth 24
+        Modes "1280x1024" "1024x768" "800x600" "640x480"
+    EndSubSection
+EndSection
+EOF
+    then
+        log_error "Failed to create xorg.conf"
+        return 1
+    fi
+
     # Configure xrdp to use GNOME via custom start script
+    # Use Xvnc as the display server (more reliable than Xorg) and launch GNOME on top
     if ! cat > /etc/xrdp/startwm.sh << 'EOF'
 #!/bin/bash
-# xrdp GNOME session script
+# xrdp GNOME session script using Xvnc display server
 
 # Load user environment
 if [ -r /etc/profile ]; then
@@ -212,6 +246,12 @@ fi
 export GNOME_SHELL_SESSION_MODE=ubuntu
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=GNOME
+
+# Get the DISPLAY from the environment (set by xrdp-sesman)
+# Typically something like :10, :11, etc.
+if [ -z "$DISPLAY" ]; then
+    export DISPLAY=:0
+fi
 
 # Start GNOME session with dbus-launch for proper session initialization
 # dbus-launch ensures the message bus is running and properly configured
@@ -224,6 +264,19 @@ EOF
 
     # Make it executable
     chmod +x /etc/xrdp/startwm.sh
+
+    # Configure sesman to prefer Xvnc over Xorg (more reliable, fewer socket conflicts)
+    if [[ -f /etc/xrdp/sesman.ini ]]; then
+        # Remove type=Xorg to disable Xorg sessions
+        sed -i '/\[Xorg\]/,/^$/{ /^type=Xorg$/d; }' /etc/xrdp/sesman.ini
+
+        # Add type=Xvnc to Xvnc section if not already there
+        if grep -q '^\[Xvnc\]' /etc/xrdp/sesman.ini && ! grep -A2 '^\[Xvnc\]' /etc/xrdp/sesman.ini | grep -q '^type='; then
+            sed -i '/^\[Xvnc\]/a type=Xvnc' /etc/xrdp/sesman.ini
+        fi
+
+        log_info "Configured sesman to use Xvnc sessions"
+    fi
 
     # Enable and start xrdp
     systemctl enable xrdp

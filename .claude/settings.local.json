@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(git push:*)",
-      "Bash(bash -n C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh)"
+      "Bash(bash -n C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh)",
+      "Read(//c/tmp/**)",
+      "Bash(bash -n deploy-desktop.sh)",
+      "Bash(chmod +x C:/Users/insan/PycharmProjects/desktop-seed/tests/diagnose-rdp.sh)",
+      "Bash(/tmp/DEPLOYMENT-CHECKLIST.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(ssh root@204.168.182.32 \"bash -n /tmp/deploy-desktop.sh\")",
+      "Bash(scp C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh root@204.168.182.32:/tmp/)",
+      "Bash(scp C:/Users/insan/PycharmProjects/desktop-seed/config.sh root@204.168.182.32:/tmp/)",
+      "Bash(ssh:*)",
+      "Bash(tee /tmp/deploy-output.log)",
+      "Bash(dos2unix C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh)",
+      "Bash(scp C:/Users/insan/PycharmProjects/desktop-seed/tests/diagnose-rdp.sh root@204.168.182.32:/tmp/)"
     ]
   }
 }
