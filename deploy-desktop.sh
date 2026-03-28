@@ -178,8 +178,8 @@ if [ -r /etc/profile ]; then
     . /etc/profile
 fi
 
-# Start XFCE session with dbus-launch
-exec dbus-launch --exit-with-session startxfce4
+# Start XFCE session
+exec startxfce4
 EOF
     then
         log_error "Failed to create startwm.sh"
@@ -301,7 +301,7 @@ EOF
     # Create .xsession for XFCE (required for xrdp to work properly)
     cat > "$user_home/.xsession" << 'EOF'
 #!/bin/sh
-exec dbus-launch --exit-with-session startxfce4
+exec startxfce4
 EOF
     chmod 700 "$user_home/.xsession"
     chown "$username:$username" "$user_home/.xsession"
