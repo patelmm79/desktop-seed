@@ -149,6 +149,35 @@ install_gnome() {
     log_info "GNOME Desktop installed successfully"
 }
 
+# Fix X server wrapper configuration
+configure_xwrapper() {
+    log_info "Configuring X server wrapper..."
+
+    # Fix Xwrapper.config to allow non-root X server access (required for xrdp)
+    if [[ -f /etc/X11/Xwrapper.config ]]; then
+        # Replace invalid 'any' value with valid 'anybody'
+        sed -i 's/^allowed_users=any$/allowed_users=anybody/' /etc/X11/Xwrapper.config
+
+        # Ensure the correct value exists
+        if ! grep -q "^allowed_users=" /etc/X11/Xwrapper.config; then
+            echo "allowed_users=anybody" >> /etc/X11/Xwrapper.config
+        fi
+
+        log_info "X server wrapper configured"
+    else
+        log_warn "Xwrapper.config not found, creating it"
+        if ! cat > /etc/X11/Xwrapper.config << 'EOF'
+# Xwrapper.config - X server wrapper configuration
+# Required for xrdp to function properly
+allowed_users=anybody
+EOF
+        then
+            log_error "Failed to create Xwrapper.config"
+            return 1
+        fi
+    fi
+}
+
 # Install and configure xrdp
 install_xrdp() {
     log_info "Installing and configuring xrdp..."
@@ -859,6 +888,7 @@ main() {
     detect_ubuntu_version
     update_system
     install_gnome
+    configure_xwrapper
     install_xrdp
     create_desktop_user
     copy_desktop_configs
