@@ -193,6 +193,9 @@ EOF
     systemctl enable xrdp
     systemctl enable xrdp-sesman
 
+    # Clean up stale X11 sockets to prevent session conflicts
+    rm -rf /tmp/.X11-unix/X* /tmp/.X*-lock 2>/dev/null || true
+
     if ! systemctl restart xrdp; then
         log_error "Failed to start xrdp service"
         return 1
