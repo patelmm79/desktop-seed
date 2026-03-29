@@ -14,7 +14,8 @@
       "Bash(ssh:*)",
       "Bash(tee /tmp/deploy-output.log)",
       "Bash(dos2unix C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh)",
-      "Bash(scp C:/Users/insan/PycharmProjects/desktop-seed/tests/diagnose-rdp.sh root@204.168.182.32:/tmp/)"
+      "Bash(scp C:/Users/insan/PycharmProjects/desktop-seed/tests/diagnose-rdp.sh root@204.168.182.32:/tmp/)",
+      "Bash(tee /tmp/deployment-output.log)"
     ]
   }
 }

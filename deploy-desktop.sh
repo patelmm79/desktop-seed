@@ -278,12 +278,20 @@ if [ -n "$XAUTHORITY" ] && [ ! -f "$XAUTHORITY" ]; then
 fi
 
 # Log what we're about to do
-echo "Starting GNOME session on $DISPLAY with UID $(id -u), X11 backend forced" >> ~/.xsession-errors 2>&1
+{
+    echo "=== Starting GNOME session ==="
+    echo "DISPLAY: $DISPLAY"
+    echo "UID: $(id -u)"
+    echo "USER: $(whoami)"
+    echo "GDK_BACKEND: $GDK_BACKEND"
+    echo "QT_QPA_PLATFORM: $QT_QPA_PLATFORM"
+    echo "Time: $(date)"
+} >> ~/.xsession-errors 2>&1
 
 # Start GNOME session with dbus-launch for proper session initialization
 # dbus-launch ensures the message bus is running and properly configured
 # Use exec to replace this script process with gnome-session
-exec dbus-launch --exit-with-session /usr/bin/gnome-session --session=ubuntu
+exec dbus-launch --exit-with-session /usr/bin/gnome-session --session=ubuntu 2>> ~/.xsession-errors
 EOF
     then
         log_error "Failed to create startwm.sh"
