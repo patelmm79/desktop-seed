@@ -240,17 +240,36 @@ EOF
 if [ -r /etc/profile ]; then
     . /etc/profile
 fi
+if [ -r $HOME/.profile ]; then
+    . $HOME/.profile
+fi
+
+# Wait for X server (Xvnc) to be ready
+sleep 3
+
+# Ensure DISPLAY is set - sesman should have set it but verify
+if [ -z "$DISPLAY" ]; then
+    echo "ERROR: DISPLAY not set" >&2
+    exit 1
+fi
 
 # Set up proper environment for GNOME under xrdp
 export GNOME_SHELL_SESSION_MODE=ubuntu
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=GNOME
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
 
-# Wait a moment for X server to be ready
-sleep 1
+# Ensure X authority file exists and is readable
+if [ -n "$XAUTHORITY" ] && [ ! -f "$XAUTHORITY" ]; then
+    touch "$XAUTHORITY" 2>/dev/null || true
+fi
+
+# Log what we're about to do
+echo "Starting GNOME session on $DISPLAY with UID $(id -u)" >> ~/.xsession-errors 2>&1
 
 # Start GNOME session with dbus-launch for proper session initialization
 # dbus-launch ensures the message bus is running and properly configured
+# Use exec to replace this script process with gnome-session
 exec dbus-launch --exit-with-session /usr/bin/gnome-session
 EOF
     then
@@ -263,15 +282,36 @@ EOF
 
     # Configure sesman and xrdp to use Xvnc instead of Xorg (more reliable, fewer socket conflicts)
     if [[ -f /etc/xrdp/sesman.ini ]]; then
-        # Remove type=Xorg to disable Xorg sessions in sesman
-        sed -i '/\[Xorg\]/,/^$/{ /^type=Xorg$/d; }' /etc/xrdp/sesman.ini
+        # Use Python to properly configure Xvnc session in sesman.ini
+        python3 << 'PYSCRIPT'
+import re
 
-        # Add type=Xvnc to Xvnc section if not already there
-        if grep -q '^\[Xvnc\]' /etc/xrdp/sesman.ini && ! grep -A2 '^\[Xvnc\]' /etc/xrdp/sesman.ini | grep -q '^type='; then
-            sed -i '/^\[Xvnc\]/a type=Xvnc' /etc/xrdp/sesman.ini
-        fi
+with open('/etc/xrdp/sesman.ini', 'r') as f:
+    content = f.read()
 
-        log_info "Configured sesman to use Xvnc sessions"
+# Remove entire [Xorg] section
+content = re.sub(r'\[Xorg\].*?(?=\[|\Z)', '', content, flags=re.DOTALL)
+
+# Find and replace the [Xvnc] section with correct parameters
+# NOTE: Do NOT include param=Xvnc as sesman automatically uses the type name as the binary
+# Only add actual display parameters
+xvnc_section = """[Xvnc]
+type=Xvnc
+param=-bs
+param=-dpi
+param=96
+"""
+
+# Replace existing [Xvnc] section
+content = re.sub(r'\[Xvnc\].*?(?=\[|\Z)', xvnc_section, content, flags=re.DOTALL)
+
+with open('/etc/xrdp/sesman.ini', 'w') as f:
+    f.write(content)
+
+print("Configured sesman.ini with proper Xvnc parameters (removed duplicate param=Xvnc)")
+PYSCRIPT
+
+        log_info "Configured sesman to use Xvnc sessions with correct parameters"
     fi
 
     # Configure xrdp.ini to remove Xorg and use only Xvnc
