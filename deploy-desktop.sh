@@ -235,6 +235,7 @@ EOF
     if ! cat > /etc/xrdp/startwm.sh << 'EOF'
 #!/bin/bash
 # xrdp GNOME session script with Xvnc display server
+# This script is called by sesman to start the desktop session
 
 # Load user environment
 if [ -r /etc/profile ]; then
@@ -244,8 +245,13 @@ if [ -r $HOME/.profile ]; then
     . $HOME/.profile
 fi
 
-# Wait for X server (Xvnc) to be ready
-sleep 3
+# Wait for X server (Xvnc) to be ready and socket to be available
+for i in {1..30}; do
+    if [ -S /tmp/.X11-unix/X${DISPLAY#:*.} ]; then
+        break
+    fi
+    sleep 0.5
+done
 
 # Ensure DISPLAY is set - sesman should have set it but verify
 if [ -z "$DISPLAY" ]; then
@@ -259,18 +265,25 @@ export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=GNOME
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 
+# CRITICAL: Force GNOME to use X11 instead of Wayland
+# Xvnc only supports X11, not Wayland. These variables must be set BEFORE
+# starting gnome-session, otherwise GNOME will try Wayland and fail
+export GDK_BACKEND=x11
+export QT_QPA_PLATFORM=xcb
+export GNOME_SHELL_WAYLANDRESTART=false
+
 # Ensure X authority file exists and is readable
 if [ -n "$XAUTHORITY" ] && [ ! -f "$XAUTHORITY" ]; then
     touch "$XAUTHORITY" 2>/dev/null || true
 fi
 
 # Log what we're about to do
-echo "Starting GNOME session on $DISPLAY with UID $(id -u)" >> ~/.xsession-errors 2>&1
+echo "Starting GNOME session on $DISPLAY with UID $(id -u), X11 backend forced" >> ~/.xsession-errors 2>&1
 
 # Start GNOME session with dbus-launch for proper session initialization
 # dbus-launch ensures the message bus is running and properly configured
 # Use exec to replace this script process with gnome-session
-exec dbus-launch --exit-with-session /usr/bin/gnome-session
+exec dbus-launch --exit-with-session /usr/bin/gnome-session --session=ubuntu
 EOF
     then
         log_error "Failed to create startwm.sh"
