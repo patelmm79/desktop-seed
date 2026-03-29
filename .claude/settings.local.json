@@ -15,7 +15,9 @@
       "Bash(tee /tmp/deploy-output.log)",
       "Bash(dos2unix C:/Users/insan/PycharmProjects/desktop-seed/deploy-desktop.sh)",
       "Bash(scp C:/Users/insan/PycharmProjects/desktop-seed/tests/diagnose-rdp.sh root@204.168.182.32:/tmp/)",
-      "Bash(tee /tmp/deployment-output.log)"
+      "Bash(tee /tmp/deployment-output.log)",
+      "Bash(scp /c/Users/insan/PycharmProjects/desktop-seed/etc/xrdp/startwm.sh root@204.168.182.32:/etc/xrdp/startwm.sh)",
+      "Bash(scp /c/Users/insan/PycharmProjects/desktop-seed/scripts/session-monitor.sh root@204.168.182.32:/tmp/session-monitor.sh)"
     ]
   }
 }
