@@ -87,24 +87,24 @@ fi
 log_session_info
 
 # === D-Bus and Keyring Initialization ===
-# Use dbus-launch to start both D-Bus session and gnome-session
-# This ensures proper environment variable propagation for keyring
-# dbus-launch automatically starts gnome-keyring-daemon activation if available
-exec dbus-launch --exit-with-session \
-    bash -c '
-        # Start gnome-keyring-daemon with proper components
-        if ! pgrep -u "$UID" gnome-keyring-daemon > /dev/null 2>&1; then
-            eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
-        fi
+# dbus-launch will start a new D-Bus session and exec gnome-session into it
+# We need to initialize keyring INSIDE that session context
+exec dbus-launch --exit-with-session bash -c '
+    # At this point, D-Bus session is ready and DBUS_SESSION_BUS_ADDRESS is set
 
-        # Log environment for debugging
-        {
-            echo "=== Session Environment ==="
-            echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS}"
-            echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-empty}"
-            echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-empty}"
-        } >> ~/.xsession-errors 2>&1
+    # Start gnome-keyring-daemon if not already running
+    if ! pgrep -u "$UID" gnome-keyring-daemon > /dev/null 2>&1; then
+        eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
+    fi
 
-        # Start GNOME session
-        exec /usr/bin/gnome-session --session=ubuntu
-    ' 2>> ~/.xsession-errors
+    # Log environment for debugging
+    {
+        echo "=== D-Bus Session Initialized ==="
+        echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS}"
+        echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-not set}"
+        echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-not set}"
+    } >> ~/.xsession-errors 2>&1
+
+    # Start GNOME session - it will inherit all environment variables
+    exec /usr/bin/gnome-session --session=ubuntu
+' 2>> ~/.xsession-errors
