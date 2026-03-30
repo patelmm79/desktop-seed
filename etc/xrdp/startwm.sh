@@ -86,28 +86,25 @@ fi
 
 log_session_info
 
-# === Keyring Initialization ===
-# Start gnome-keyring-daemon if not already running
-# This handles libsecret credential storage and encryption
-if ! pgrep -u "$UID" gnome-keyring-daemon > /dev/null 2>&1; then
-    # Start keyring daemon and capture its environment
-    eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
-fi
+# === D-Bus and Keyring Initialization ===
+# Use dbus-launch to start both D-Bus session and gnome-session
+# This ensures proper environment variable propagation for keyring
+# dbus-launch automatically starts gnome-keyring-daemon activation if available
+exec dbus-launch --exit-with-session \
+    bash -c '
+        # Start gnome-keyring-daemon with proper components
+        if ! pgrep -u "$UID" gnome-keyring-daemon > /dev/null 2>&1; then
+            eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
+        fi
 
-# Export keyring and D-Bus variables so all child processes (VS Code, etc.) can access them
-export GNOME_KEYRING_CONTROL="${GNOME_KEYRING_CONTROL:-}"
-export SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-}"
-export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+        # Log environment for debugging
+        {
+            echo "=== Session Environment ==="
+            echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS}"
+            echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-empty}"
+            echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-empty}"
+        } >> ~/.xsession-errors 2>&1
 
-# Log keyring setup
-{
-    echo "=== Keyring Daemon Initialized ==="
-    echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-unset}"
-    echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-unset}"
-    echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS:-unset}"
-} >> ~/.xsession-errors 2>&1
-
-# Start GNOME session with dbus-launch for proper session initialization
-# dbus-launch ensures the message bus is running and properly configured
-# Use exec to replace this script process with gnome-session
-exec dbus-launch --exit-with-session /usr/bin/gnome-session --session=ubuntu 2>> ~/.xsession-errors
+        # Start GNOME session
+        exec /usr/bin/gnome-session --session=ubuntu
+    ' 2>> ~/.xsession-errors
