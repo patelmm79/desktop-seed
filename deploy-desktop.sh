@@ -315,17 +315,24 @@ export G_MESSAGES_DEBUG="${G_MESSAGES_DEBUG:-}"
 
 # === Keyring Initialization ===
 # Start gnome-keyring-daemon if not already running
-if ! pgrep -u "$UID" -f "gnome-keyring-daemon.*${DISPLAY}" > /dev/null 2>&1; then
+# This handles libsecret credential storage and encryption
+if ! pgrep -u "$UID" gnome-keyring-daemon > /dev/null 2>&1; then
+    # Start keyring daemon and capture its environment
     eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
-    {
-        echo "=== Keyring Daemon Started ==="
-        echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-unset}"
-        echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-unset}"
-    } >> ~/.xsession-errors 2>&1
 fi
 
-# Ensure D-Bus is properly configured for the session
+# Export keyring and D-Bus variables so all child processes (VS Code, etc.) can access them
+export GNOME_KEYRING_CONTROL="${GNOME_KEYRING_CONTROL:-}"
+export SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+
+# Log keyring setup
+{
+    echo "=== Keyring Daemon Initialized ==="
+    echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-unset}"
+    echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-unset}"
+    echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS:-unset}"
+} >> ~/.xsession-errors 2>&1
 
 # Ensure X authority file exists and is readable
 if [ -n "$XAUTHORITY" ] && [ ! -f "$XAUTHORITY" ]; then
