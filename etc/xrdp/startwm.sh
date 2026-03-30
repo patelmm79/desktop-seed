@@ -86,6 +86,21 @@ fi
 
 log_session_info
 
+# === Keyring Initialization ===
+# Start gnome-keyring-daemon if not already running
+# This handles libsecret credential storage and encryption
+if ! pgrep -u "$UID" -f "gnome-keyring-daemon.*${DISPLAY}" > /dev/null; then
+    eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
+    {
+        echo "=== Keyring Daemon Started ==="
+        echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-unset}"
+        echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-unset}"
+    } >> ~/.xsession-errors 2>&1
+fi
+
+# Ensure D-Bus is properly configured for the session
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+
 # Start GNOME session with dbus-launch for proper session initialization
 # dbus-launch ensures the message bus is running and properly configured
 # Use exec to replace this script process with gnome-session
