@@ -21,27 +21,28 @@ log_header() { echo -e "${BLUE}=== $1 ===${NC}"; }
 analyze_crashes() {
     log_header "Session Crashes"
 
-    if [ ! -f /var/log/xrdp/xrdp-sesman.log ]; then
-        log_error "xrdp-sesman.log not found"
+    local sesman_log="/var/log/xrdp-sesman.log"
+    if [ ! -f "$sesman_log" ]; then
+        log_error "xrdp-sesman.log not found at $sesman_log"
         return 1
     fi
 
     echo ""
     log_info "Looking for window manager crashes..."
 
-    local crash_count=0
-    grep -i "window manager.*exited\|crashed\|exit.*signal" /var/log/xrdp/xrdp-sesman.log | while read -r line; do
-        crash_count=$((crash_count + 1))
-        echo "  $line"
-    done
+    local crash_count=$(grep -ic "window manager.*exited\|crashed\|exit.*signal" "$sesman_log" || echo "0")
 
-    if [ $crash_count -eq 0 ]; then
+    if [ "$crash_count" -gt 0 ]; then
+        grep -i "window manager.*exited\|crashed\|exit.*signal" "$sesman_log" | tail -20 | while read -r line; do
+            echo "  $line"
+        done
+    else
         log_info "No crashes detected in recent logs"
     fi
 
     echo ""
     log_info "Recent error messages:"
-    grep -i "error\|warn" /var/log/xrdp/xrdp-sesman.log | tail -10 | while read -r line; do
+    grep -i "error\|warn" "$sesman_log" | tail -10 | while read -r line; do
         echo "  $line"
     done
 }
@@ -49,14 +50,17 @@ analyze_crashes() {
 analyze_memory() {
     log_header "Memory Usage Analysis"
 
-    if [ ! -f /var/log/xrdp/session-monitor.log ]; then
+    local monitor_log="/var/log/xrdp/session-monitor.log"
+    local alerts_log="/var/log/xrdp/session-alerts.log"
+
+    if [ ! -f "$monitor_log" ]; then
         log_warn "session-monitor.log not found - enable monitoring with: sudo bash scripts/session-monitor.sh --enable"
         return 1
     fi
 
     echo ""
     log_info "Memory peaks from monitoring data:"
-    grep -i "memory" /var/log/xrdp/session-monitor.log | grep -oE "[0-9]+\.[0-9]+%" | sort -rn | uniq | head -5 | while read -r percent; do
+    grep -i "memory" "$monitor_log" 2>/dev/null | grep -oE "[0-9]+\.[0-9]+%" | sort -rn | uniq | head -5 | while read -r percent; do
         echo "  Peak: $percent of available memory"
     done
 
@@ -64,13 +68,13 @@ analyze_memory() {
     log_info "Current active sessions:"
     ps aux | grep "[X]vnc" | awk '{printf "  Display %s: PID %d, Mem %.1f%% (%dMB), CPU %.1f%%\n", $11, $2, $4, $6/1024, $3}'
 
-    if [ ! -f /var/log/xrdp/session-alerts.log ]; then
+    if [ ! -f "$alerts_log" ]; then
         return 0
     fi
 
     echo ""
     log_info "Memory threshold alerts:"
-    grep "HIGH_MEMORY" /var/log/xrdp/session-alerts.log | tail -5 | while read -r line; do
+    grep "HIGH_MEMORY" "$alerts_log" 2>/dev/null | tail -5 | while read -r line; do
         echo "  $line"
     done
 }
@@ -78,14 +82,15 @@ analyze_memory() {
 analyze_timeline() {
     log_header "Session Timeline"
 
-    if [ ! -f /var/log/xrdp/xrdp-sesman.log ]; then
-        log_error "xrdp-sesman.log not found"
+    local sesman_log="/var/log/xrdp-sesman.log"
+    if [ ! -f "$sesman_log" ]; then
+        log_error "xrdp-sesman.log not found at $sesman_log"
         return 1
     fi
 
     echo ""
     log_info "Session creation timeline:"
-    grep -i "created session\|starting.*session" /var/log/xrdp/xrdp-sesman.log | tail -20 | while read -r line; do
+    grep -i "created session\|starting.*session" "$sesman_log" | tail -20 | while read -r line; do
         timestamp=$(echo "$line" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}" || echo "")
         time=$(echo "$line" | grep -oE "[0-9]{2}:[0-9]{2}:[0-9]{2}" || echo "")
         display=$(echo "$line" | grep -oE "display :[0-9]+" || echo "")
@@ -94,7 +99,7 @@ analyze_timeline() {
 
     echo ""
     log_info "Session termination timeline:"
-    grep -i "terminated session\|exited\|process.*exited" /var/log/xrdp/xrdp-sesman.log | tail -10 | while read -r line; do
+    grep -i "terminated session\|exited\|process.*exited" "$sesman_log" | tail -10 | while read -r line; do
         timestamp=$(echo "$line" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}" || echo "")
         time=$(echo "$line" | grep -oE "[0-9]{2}:[0-9]{2}:[0-9]{2}" || echo "")
         reason=$(echo "$line" | grep -oE "username.*|signal.*|exit.*" | head -1 || echo "unknown")
