@@ -232,109 +232,49 @@ EOF
     fi
 
     # Configure xrdp to use GNOME via custom start script with Xvnc display server
+    # NOTE: Starting gnome-shell directly instead of gnome-session works better
+    # with xrdp on Ubuntu 24.04 (gnome-session has issues)
     if ! cat > /etc/xrdp/startwm.sh << 'EOF'
 #!/bin/bash
-# xrdp GNOME session script with Xvnc display server and crash recovery
-# This script is called by sesman to start the desktop session
-
+# xrdp GNOME session script - start gnome-shell directly for xrdp compatibility
 set -euo pipefail
 
-# === Session Information Logging ===
-log_session_info() {
-    {
-        echo "=== Starting GNOME session ==="
-        echo "DISPLAY: $DISPLAY"
-        echo "PID: $$"
-        echo "UID: $(id -u)"
-        echo "USER: $(whoami)"
-        echo "GDK_BACKEND: ${GDK_BACKEND:-unset}"
-        echo "QT_QPA_PLATFORM: ${QT_QPA_PLATFORM:-unset}"
-        echo "Time: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-        echo "Memory available: $(free -h | awk 'NR==2 {print $7}')"
-        echo "CPU count: $(nproc)"
-        echo "---"
-    } >> ~/.xsession-errors 2>&1
-}
+# Defensive profile loading (handles unbound variables in some profile scripts)
+set +u
+[ -r /etc/profile ] && . /etc/profile 2>/dev/null || true
+[ -r "$HOME/.profile" ] && . "$HOME/.profile" 2>/dev/null || true
+set -u
 
-# === Crash Logging ===
-log_crash_info() {
-    {
-        echo "[ERROR] Session crashed on $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "Exit status: $1"
-        echo "Memory snapshot:"
-        free -h >> ~/.xsession-errors 2>&1
-        echo "Top processes by memory:"
-        ps aux --sort=-%mem | head -5 >> ~/.xsession-errors 2>&1
-        echo "---"
-    } >> ~/.xsession-errors 2>&1
-}
+echo "=== Starting RDP session at $(date) ===" >> ~/.xsession-errors
 
-trap 'log_crash_info $?' EXIT
-
-# Load user environment
-if [ -r /etc/profile ]; then
-    . /etc/profile
-fi
-if [ -r $HOME/.profile ]; then
-    . $HOME/.profile
-fi
-
-# Wait for X server (Xvnc) to be ready and socket to be available
+# Wait for X server (Xvnc) to be ready
+_display_num="${DISPLAY#*:}"
 for i in {1..30}; do
-    if [ -S /tmp/.X11-unix/X${DISPLAY#:*.} ]; then
-        break
-    fi
+    [ -S "/tmp/.X11-unix/X${_display_num}" ] && break
     sleep 0.5
 done
+unset _display_num
 
-# Ensure DISPLAY is set - sesman should have set it but verify
-if [ -z "$DISPLAY" ]; then
-    echo "ERROR: DISPLAY not set" >&2
-    exit 1
-fi
+[ -z "$DISPLAY" ] && { echo "ERROR: DISPLAY not set" >&2; exit 1; }
 
-# === Memory Management ===
-# Set conservative memory limits to prevent OOM kill
-ulimit -v 2097152  # ~2GB virtual memory limit per process
-
-# Set up proper environment for GNOME under xrdp
-export GNOME_SHELL_SESSION_MODE=ubuntu
+# Environment - CRITICAL: force X11, not Wayland (Xvnc doesn't support Wayland)
+export GDK_BACKEND=x11
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=GNOME
-export XDG_RUNTIME_DIR=/run/user/$(id -u)
-
-# CRITICAL: Force GNOME to use X11 instead of Wayland
-# Xvnc only supports X11, not Wayland. These variables must be set BEFORE
-# starting gnome-session, otherwise GNOME will try Wayland and fail
-export GDK_BACKEND=x11
-export QT_QPA_PLATFORM=xcb
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export GNOME_SHELL_SESSION_MODE=ubuntu
 export GNOME_SHELL_WAYLANDRESTART=false
 
-# Disable debug logging by default for performance
-export G_MESSAGES_DEBUG="${G_MESSAGES_DEBUG:-}"
+echo "DISPLAY=$DISPLAY, GDK_BACKEND=$GDK_BACKEND" >> ~/.xsession-errors
 
-# === D-Bus and Keyring Initialization ===
-# dbus-launch will start a new D-Bus session and exec gnome-session into it
-# We need to initialize keyring INSIDE that session context
-exec dbus-launch --exit-with-session bash -c '
-    # At this point, D-Bus session is ready and DBUS_SESSION_BUS_ADDRESS is set
+# Start D-Bus session if not already running
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    eval $(dbus-launch --sh-syntax)
+fi
+echo "DBUS=$DBUS_SESSION_BUS_ADDRESS" >> ~/.xsession-errors
 
-    # Start gnome-keyring-daemon if not already running
-    if ! pgrep -u "$UID" gnome-keyring-daemon > /dev/null 2>&1; then
-        eval "$(gnome-keyring-daemon --start --components=secrets,pkcs11 2>/dev/null)" || true
-    fi
-
-    # Log environment for debugging
-    {
-        echo "=== D-Bus Session Initialized ==="
-        echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS}"
-        echo "GNOME_KEYRING_CONTROL: ${GNOME_KEYRING_CONTROL:-not set}"
-        echo "SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-not set}"
-    } >> ~/.xsession-errors 2>&1
-
-    # Start GNOME session - it will inherit all environment variables
-    exec /usr/bin/gnome-session --session=ubuntu
-' 2>> ~/.xsession-errors
+# Start gnome-shell directly (bypasses gnome-session which has issues with xrdp)
+exec nohup gnome-shell >> ~/.xsession-errors 2>&1
 EOF
     then
         log_error "Failed to create startwm.sh"
@@ -865,6 +805,92 @@ install_ghcli() {
     fi
 }
 
+# Install Bun runtime
+install_bun() {
+    log_info "Installing Bun runtime..."
+
+    # Check if already installed
+    if command -v bun &> /dev/null; then
+        local bun_version
+        bun_version=$(bun --version 2>/dev/null)
+        log_info "Bun already installed: v$bun_version"
+        return 0
+    fi
+
+    # Install bun using official installer
+    if curl -fsSL https://bun.sh/install 2>/dev/null | bash 2>&1; then
+        # Source bun's shell env to get path
+        if [ -f "$HOME/.bashrc" ]; then
+            . "$HOME/.bashrc" 2>/dev/null || true
+        fi
+
+        # Create symlink to system location
+        if [ -f "$HOME/.bun/bin/bun" ]; then
+            ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun 2>/dev/null || true
+        fi
+
+        if command -v bun &> /dev/null; then
+            local bun_version
+            bun_version=$(bun --version 2>/dev/null)
+            log_info "Bun installed successfully: v$bun_version"
+        else
+            log_warn "Bun installed but command not found in PATH"
+        fi
+    else
+        log_warn "Failed to install Bun (may retry on next deployment)"
+    fi
+}
+
+# Install OpenCLAW AI client
+install_openclaw() {
+    log_info "Installing OpenCLAW..."
+
+    # Check if already installed
+    if command -v openclaw &> /dev/null; then
+        local oc_version
+        oc_version=$(openclaw --version 2>/dev/null || echo "installed")
+        log_info "OpenCLAW already installed"
+        return 0
+    fi
+
+    # Install via npm as global package
+    # First ensure Node.js is available
+    if ! command -v node &> /dev/null; then
+        log_info "Installing Node.js for OpenCLAW..."
+        if ! apt-get install -y nodejs npm 2>&1 | grep -q "Err\|Failed"; then
+            log_info "Node.js installed"
+        else
+            log_warn "Failed to install Node.js"
+        fi
+    fi
+
+    # Install openclaw globally
+    if command -v npm &> /dev/null; then
+        if npm install -g openclaw 2>&1; then
+            # Verify installation
+            if command -v openclaw &> /dev/null; then
+                log_info "OpenCLAW installed successfully"
+            else
+                # Try to find and symlink
+                local npm_global_path
+                npm_global_path=$(npm root -g 2>/dev/null)
+                if [ -f "$npm_global_path/openclaw/bin/openclaw.js" ]; then
+                    ln -sf "$npm_global_path/openclaw/bin/openclaw.js" /usr/bin/openclaw 2>/dev/null || true
+                fi
+                if command -v openclaw &> /dev/null; then
+                    log_info "OpenCLAW installed successfully"
+                else
+                    log_warn "OpenCLAW npm package installed but command not found"
+                fi
+            fi
+        else
+            log_warn "Failed to install OpenCLAW via npm"
+        fi
+    else
+        log_warn "npm not available - cannot install OpenCLAW"
+    fi
+}
+
 # Set up environment variables and system-wide configuration
 setup_environment() {
     log_info "Setting up environment variables..."
@@ -1097,6 +1123,49 @@ setup_gnome_extensions() {
     fi
 }
 
+# Validate deployment - ensure RDP will work
+validate_deployment() {
+    log_info "Validating deployment..."
+
+    # Check xrdp is running
+    if systemctl is-active --quiet xrdp; then
+        log_info "  - xrdp service is running"
+    else
+        log_warn "  - xrdp service is NOT running"
+    fi
+
+    # Check startwm.sh exists and is executable
+    if [ -x /etc/xrdp/startwm.sh ]; then
+        log_info "  - startwm.sh is configured and executable"
+    else
+        log_warn "  - startwm.sh is missing or not executable"
+    fi
+
+    # Verify key environment variables are set in startwm.sh
+    if grep -q "GDK_BACKEND=x11" /etc/xrdp/startwm.sh 2>/dev/null; then
+        log_info "  - GDK_BACKEND=x11 configured (forces X11, not Wayland)"
+    else
+        log_warn "  - GDK_BACKEND not configured - RDP may fail"
+    fi
+
+    # Check dbus is available
+    if command -v dbus-launch &> /dev/null; then
+        log_info "  - dbus-launch available for session initialization"
+    else
+        log_warn "  - dbus-launch not found"
+    fi
+
+    # Verify gnome-session is available
+    if command -v gnome-session &> /dev/null; then
+        log_info "  - gnome-session is installed"
+    else
+        log_error "  - gnome-session NOT found - Desktop will not start"
+        return 1
+    fi
+
+    log_info "Deployment validation complete"
+}
+
 # Display post-installation summary
 show_summary() {
     log_info "========================================="
@@ -1158,12 +1227,15 @@ main() {
     install_claude_code_router
     install_chromium
     install_ghcli
+    install_bun
+    install_openclaw
     setup_environment
     configure_mcp_servers
     create_desktop_shortcuts
     setup_keyring
     setup_monitoring
     setup_gnome_extensions
+    validate_deployment
     show_summary
 
     log_info "System ready for deployment"

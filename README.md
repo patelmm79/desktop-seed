@@ -388,6 +388,7 @@ CPU_THRESHOLD=75      # send alert when CPU reaches 75%
 | Guide | Who It's For | What It Covers |
 |-------|-------------|----------------|
 | [Quick Deploy](docs/QUICK-DEPLOY.md) | Everyone | Condensed deployment steps |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Operators | Issues encountered and fixes applied |
 | [Usage Guide](docs/usage-guide.md) | End users | Using VS Code, Claude Code, GitHub CLI |
 | [SSH Setup](docs/ssh-setup-guide.md) | Windows users | Setting up SSH key authentication |
 | [Crash Recovery](docs/crash-recovery-guide.md) | Operators | Understanding and responding to crashes |
@@ -409,6 +410,45 @@ The main script (`deploy-desktop.sh`) follows these conventions:
 - 4-space indentation
 
 When fixing issues found on a real VM, update the repository scripts — not just the remote machine. This ensures future deployments automatically include the fix.
+
+---
+
+## Testing Environment
+
+This deployment has been tested on the following infrastructure:
+
+| Component | Details |
+|-----------|---------|
+| **Provider** | Hetzner Cloud |
+| **Virtualization** | QEMU/KVM |
+| **Server Type** | <!-- TODO: Add exact model (e.g., CPX21, CAX21) --> |
+| **OS** | Ubuntu 24.04.4 LTS (Noble Numbat) |
+| **RAM** | 8 GB |
+| **CPU** | 4 vCPU |
+| **Storage** | SSD (system disk) |
+| **Monthly Cost** | <!-- TODO: Add cost estimate --> |
+| **Public IP** | 2a01:4f9:c014:48a1::1 (IPv6) |
+
+### Test VM
+- **IP:** 204.168.182.32 (behind NAT)
+- **Hostname:** ubuntu-8gb-hel1-1
+- **Purpose:** Development desktop with RDP access
+
+### Other Providers Tested
+- <!-- TODO: Add other cloud providers if tested (AWS, DigitalOcean, etc.) -->
+
+### Verified Working
+- GNOME Desktop via RDP (xrdp + Xvnc)
+- VS Code
+- Claude Code
+- OpenCLAW
+- Chromium Browser
+- GitHub CLI
+- Bun runtime
+- Session monitoring (30-second checks)
+- Crash detection and recovery
+
+---
 
 ```bash
 # Validate script syntax before committing

@@ -60,6 +60,16 @@ COMPONENTS[ghcli_name]="GitHub CLI"
 COMPONENTS[ghcli_check]="command -v gh &> /dev/null"
 COMPONENTS[ghcli_required]="false"
 
+# Bun runtime
+COMPONENTS[bun_name]="Bun"
+COMPONENTS[bun_check]="command -v bun &> /dev/null"
+COMPONENTS[bun_required]="false"
+
+# OpenCLAW AI client
+COMPONENTS[openclaw_name]="OpenCLAW"
+COMPONENTS[openclaw_check]="command -v openclaw &> /dev/null"
+COMPONENTS[openclaw_required]="false"
+
 # Get list of component keys
 get_component_keys() {
     local keys=()
