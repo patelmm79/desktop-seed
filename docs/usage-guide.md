@@ -1,119 +1,212 @@
-# Remote Desktop Usage Guide
+# Using Your Remote Desktop
 
-## Connecting to the Remote Desktop
+This guide assumes you've already deployed the desktop and can connect via RDP. If you haven't done that yet, start with the [Quick Deploy](QUICK-DEPLOY.md) guide.
+
+---
+
+## Connecting to Your Desktop
 
 ### From Windows
-1. Open **Microsoft Remote Desktop** (pre-installed on Windows 10/11)
-2. Click **Add PC**
-3. Enter the remote server's IP address or hostname
+
+1. Press **Windows + S** and search for **Remote Desktop Connection**
+2. In the **Computer** field, type your server's IP address
+3. Click **Connect**
 4. Enter your Ubuntu username and password when prompted
-5. Click Connect
+5. The GNOME desktop should appear within a few seconds
+
+> **Tip:** Save the connection so you don't have to type the IP each time. In Remote Desktop Connection, click **Show Options** → **Save As** before connecting.
 
 ### From Android Tablet
-1. Install **Microsoft Remote Desktop** from Google Play Store
-2. Open the app and tap **+** to add a new connection
-3. Enter the remote server's IP address
-4. Configure display settings for tablet (landscape mode recommended)
-5. Connect using your Ubuntu credentials
 
-## Installed Applications
+1. Install **[Microsoft Remote Desktop](https://play.google.com/store/apps/details?id=com.microsoft.rdc.androidx)** from the Google Play Store
+2. Open the app and tap the **+** button
+3. Select **Add PC**
+4. Enter your server's IP address
+5. Tap **Connect** and enter your Ubuntu credentials
 
-### Visual Studio Code
-- Launch: Click "VS Code" desktop shortcut or type `code` in terminal
-- Access from menu: Applications > Development > Visual Studio Code
+Landscape mode works best. If you need a keyboard, enable the on-screen keyboard: **Settings → Accessibility → Keyboard → On-Screen Keyboard**.
 
-### Claude Code
-- Terminal-based AI assistant
-- Run: `claude` in terminal
-- Requires API key configuration (see below)
+---
 
-### Chromium Browser
-- Launch: Click "Chromium" desktop shortcut or type `chromium-browser`
-- Access from menu: Applications > Internet > Chromium Web Browser
+## First Things to Do After Connecting
 
-### GitHub CLI
-- Run: `gh` in terminal
-- First-time setup requires authentication (see below)
+### 1. Open a terminal
 
-## GitHub CLI Authentication
+Right-click anywhere on the desktop and select **Open Terminal**, or press **Ctrl+Alt+T**.
 
-1. Authenticate with GitHub:
-   ```bash
-   gh auth login
-   ```
+### 2. Set your OpenRouter API key
 
-2. Select options:
-   - GitHub.com
-   - HTTPS
-   - Login with a web browser
-   - Copy the one-time code and paste in browser
+This is what powers Claude Code (the AI assistant). You only need to do this once:
 
-3. List your repositories:
-   ```bash
-   gh repo list
-   ```
-
-## API Key Configuration
-
-### For Claude Code with OpenRouter:
-
-1. Get your OpenRouter API key from https://openrouter.ai/
-
-2. Set the environment variable (add to ~/.bashrc for persistence):
-   ```bash
-   echo 'export OPENROUTER_API_KEY="your_api_key_here"' >> ~/.bashrc
-   source ~/.bashrc
-   ```
-
-3. Verify configuration:
-   ```bash
-   claude --version
-   ```
-
-### For Claude Code to use minimax2.5 model:
-
-The default model is already configured in OpenRouter CLI settings.
-To change models:
 ```bash
-openrouter config set-model <model_name>
+echo 'export OPENROUTER_API_KEY="your_api_key_here"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-## Desktop Environment Tips
+Replace `your_api_key_here` with your actual key from [openrouter.ai](https://openrouter.ai/).
 
-### GNOME Touch Gestures
-- **Switch workspaces**: Three-finger swipe left/right
-- **Overview**: Three-finger swipe up
-- **App launcher**: Super key (Windows key)
+### 3. Verify everything is working
 
-### On-Screen Keyboard
-- GNOME includes built-in on-screen keyboard
-- Access: Settings > Accessibility > Keyboard > On-Screen Keyboard
-- Enable for touch tablet use
+```bash
+claude --version      # should print a version number
+code --version        # should print VS Code version
+gh --version          # should print GitHub CLI version
+openclaw --version    # should print OpenCLAW version
+chromium-browser      # should open the browser
+```
 
-### Tablet Optimization
-- GNOME is designed for touch; icons and buttons are touch-friendly
-- Use tablet in landscape mode for best experience
-- Enable "Night Light" in Settings > Display for evening use
+---
 
-## Troubleshooting
+## Using [VS Code](https://code.visualstudio.com/)
 
-### RDP Connection Issues
-- Check xrdp status: `systemctl status xrdp`
-- Restart xrdp: `sudo systemctl restart xrdp`
-- Check firewall: `sudo ufw status` (port 3389 should be allowed)
+[VS Code](https://code.visualstudio.com/) is a full code editor with support for extensions, debugging, and an integrated terminal.
 
-### Desktop Not Loading
-- Check GNOME status: `systemctl status gdm3`
-- Restart display manager: `sudo systemctl restart gdm3`
+**Open it from the desktop** by clicking the VS Code icon, or **from a terminal**:
 
-### Claude Code Not Working
-- Verify API key: `echo $OPENROUTER_API_KEY`
-- Check configuration: `cat ~/.config/claude/settings.json`
-- Test OpenRouter: `openrouter status`
+```bash
+code .               # open the current folder as a project
+code ~/my-project    # open a specific folder
+code myfile.py       # open a single file
+```
+
+**First time setup tips:**
+- Sign into your GitHub account: click the person icon at the bottom-left → **Turn on Settings Sync**
+- Install extensions you need: press **Ctrl+Shift+X** to open the Extensions panel
+- Open a terminal inside VS Code: press **Ctrl+`** (backtick)
+
+---
+
+## Using [Claude Code](https://claude.ai/code) (AI assistant)
+
+[Claude Code](https://claude.ai/code) is an AI coding assistant that runs in the terminal. It can read your code, answer questions, write functions, find bugs, and explain things.
+
+**Start an interactive session:**
+```bash
+claude
+```
+
+You'll see a prompt where you can type questions like:
+- "Explain what this function does"
+- "Write a Python function that reads a CSV file"
+- "Why is this code throwing a TypeError?"
+
+**Ask a quick one-shot question:**
+```bash
+claude "what does the grep command do?"
+claude "show me how to list files in Python"
+```
+
+**Use it inside a project folder** — Claude Code will read your files and give context-aware answers:
+```bash
+cd ~/my-project
+claude "what does this codebase do?"
+```
+
+> **Note:** Claude Code requires your `OPENROUTER_API_KEY` to be set (see Step 2 above).
+
+---
+
+## Using [GitHub CLI](https://cli.github.com/)
+
+[GitHub CLI](https://cli.github.com/) (`gh`) lets you manage your GitHub repositories, pull requests, and issues from the terminal — without needing a browser.
+
+**First time: log in to GitHub**
+
+```bash
+gh auth login
+```
+
+Follow the prompts:
+1. Select **GitHub.com**
+2. Select **HTTPS**
+3. Select **Login with a web browser**
+4. A code will appear in the terminal — copy it
+5. A browser window will open (or open the URL shown) — paste the code there
+6. Authorize the app
+
+**Common commands:**
+
+```bash
+gh repo clone owner/repo-name   # download a repository
+gh repo list                    # list your repositories
+gh pr list                      # see open pull requests
+gh pr create                    # create a new pull request
+gh issue list                   # see open issues
+```
+
+---
+
+## Using [OpenCLAW](https://openclaw.app/)
+
+[OpenCLAW](https://openclaw.app/) is installed as a global npm package and lets you connect to remote Discord instances from the terminal.
+
+**Start OpenCLAW:**
+```bash
+openclaw
+```
+
+**Check it is installed:**
+```bash
+openclaw --version
+```
+
+> **Note:** OpenCLAW requires Node.js, which is installed automatically during deployment. If the command is not found, try `source ~/.bashrc` or open a new terminal.
+
+---
+
+## Using [Chromium Browser](https://www.chromium.org/chromium-projects/)
+
+[Chromium](https://www.chromium.org/chromium-projects/) is the open-source version of Chrome. It works just like Chrome.
+
+**Open it from the desktop** by clicking the Chromium icon, or **from a terminal:**
+
+```bash
+chromium-browser
+```
+
+> **If the browser is slow:** Chromium over RDP can feel sluggish on slow internet connections. For browsing-heavy work, consider keeping a local browser open for general use and using the remote Chromium only when you need it to be on the server (e.g. to authenticate with a service).
+
+---
+
+## Desktop Tips
+
+### Keyboard shortcuts
+| Shortcut | What It Does |
+|----------|-------------|
+| **Super** (Windows key) | Opens the app launcher / overview |
+| **Ctrl+Alt+T** | Opens a new terminal |
+| **Alt+F4** | Closes the current window |
+| **Super+H** | Hides (minimizes) the current window |
+
+### Workspaces (virtual desktops)
+GNOME supports multiple workspaces so you can organize your windows:
+- **Super+Page Up / Page Down** — switch workspaces
+- **Super+Shift+Page Up / Page Down** — move the current window to another workspace
+
+### Window arrangement
+The **Cascade Windows** extension is pre-installed. You can access it from the GNOME Extensions menu to tile or organize your windows.
+
+### On-screen keyboard (Android tablet)
+Go to **Settings → Accessibility → Keyboard → On-Screen Keyboard** and toggle it on.
+
+---
 
 ## Security Recommendations
 
-1. **Use strong passwords** for your Ubuntu user account
-2. **Configure firewall** - only allow RDP from your devices
-3. **Use SSH keys** for server access instead of passwords
-4. **Keep system updated**: `sudo apt update && sudo apt upgrade`
+1. **Use a strong password** for your Ubuntu account — it's what protects RDP access
+2. **Restrict port 3389 to your IP** in your server's firewall, rather than opening it to the world
+3. **Use SSH keys instead of passwords** for server access — see the [SSH Setup Guide](ssh-setup-guide.md)
+4. **Keep the system updated** periodically:
+   ```bash
+   sudo apt update && sudo apt upgrade
+   ```
+
+---
+
+## Getting Help
+
+If something isn't working as expected:
+
+- **Tools not found:** Run `source ~/.bashrc` or close and reopen the terminal
+- **RDP problems:** See [Troubleshooting Guide](TROUBLESHOOTING.md)
+- **Crash or performance issues:** See [Crash Recovery Guide](crash-recovery-guide.md)

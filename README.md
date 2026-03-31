@@ -2,13 +2,43 @@
 
 Automated setup for a full Linux desktop environment on a remote Ubuntu server — accessible from anywhere via Remote Desktop (RDP). Designed for developers who want a cloud-based workstation pre-loaded with VS Code, AI tools, and a browser, without doing manual installation steps.
 
-**Status:** Production-ready. Tested on Ubuntu 20.04, 22.04, and 24.04.
+**Status:** Validated for personal/developer use. Tested on Ubuntu 20.04, 22.04, and 24.04.
+
+---
+
+## Tested On: Hetzner CPX32
+
+This setup has been validated on a **[Hetzner CPX32](https://www.hetzner.com/cloud/)** cloud instance — a solid mid-range option for this workload:
+
+| Spec | Value |
+|------|-------|
+| **CPU** | 4 vCPUs (AMD) |
+| **RAM** | 8 GB |
+| **Storage** | 160 GB SSD |
+| **Price** | max. $12.59/month ($0.0202/hour) |
+| **Location** | Choice of EU/US datacenters |
+
+> **Tip:** Stop the server when not in use to avoid billing. Hetzner charges hourly, so stopping an idle server saves significant costs.
+
+### Why This Hardware?
+
+The use case driving this project: running **~6 simultaneous VS Code instances**, each with Claude Code active, while connecting to remote Discord instances via [OpenClaw](https://openclaw.app/) — all through a single RDP session.
+
+**What this solves:**
+
+- **Local laptop performance** — Running 6 VS Code windows with AI assistants was grinding the local machine to a halt. Offloading to a cloud server with dedicated RAM and CPU eliminates the bottleneck entirely.
+- **Always-on availability** — The laptop would frequently restart overnight (updates, lid-close sleep). The cloud server stays up 24/7, so work-in-progress is never interrupted.
+- **Single coordination interface** — All VS Code instances, Claude Code sessions, and Discord connections run on one remote desktop, accessible from any device — useful for managing multiple coding workstreams on the go.
+
+The CPX32 handles this load comfortably at idle (~3 GB RAM used), with headroom for heavier workloads. Check current pricing at [hetzner.com/cloud](https://www.hetzner.com/cloud/regular-performance).
 
 ---
 
 ## What Problem Does This Solve?
 
-Running a development environment on a cloud server (like an AWS EC2 instance) normally gives you only a terminal. This script turns that server into a **full graphical desktop** you can connect to from any Windows PC or Android tablet — just like using a remote computer. It also handles the painful parts automatically:
+Running a development environment on a cloud server (like an AWS EC2 instance or Hetzner VPS) normally gives you only a terminal. This script turns that server into a **full graphical desktop** you can connect to from any Windows PC or Android tablet — just like using a remote computer.
+
+It also handles the painful parts automatically:
 
 - Setting up the graphical desktop and RDP server (normally 30+ manual steps)
 - Preventing and detecting session crashes (used to take 3+ hours to notice; now < 30 seconds)
@@ -25,8 +55,9 @@ Running a development environment on a cloud server (like an AWS EC2 instance) n
 | **xrdp** | Remote Desktop Protocol server | Lets you connect to the desktop from Windows or Android |
 | **VS Code** | Code editor | Full-featured editor with extensions, debugger, terminal |
 | **Claude Code** | AI coding assistant (terminal-based) | AI pair programmer — run `claude` in any terminal |
-| **OpenRouter CLI** | Access to AI models via API | Lets Claude Code use models like GPT-4, Gemini, etc. |
+| **OpenRouter CLI** | Access to AI models via API | Lets Claude Code connect to AI models |
 | **Chromium** | Open-source web browser | Full browser available inside the remote desktop |
+| **OpenCLAW** | Remote Discord client | Connects to remote Discord instances from the desktop |
 | **GitHub CLI** | GitHub from the command line | Push/pull repos, manage PRs without browser auth |
 | **GNOME Keyring** | Secure credential/password storage | Prevents "OS keyring not available" errors in VS Code |
 | **Cascade Windows** | Window arrangement extension | Tiles and organizes windows on the desktop |
@@ -38,26 +69,42 @@ Running a development environment on a cloud server (like an AWS EC2 instance) n
 
 Before you start, you need:
 
-1. **An Ubuntu server** — a cloud VM (AWS EC2, DigitalOcean, etc.) running Ubuntu 20.04 or newer
+1. **An Ubuntu server** — a cloud VM running Ubuntu 20.04 or newer
    - Minimum: 2 CPU cores, 4 GB RAM, 30 GB storage
-   - Recommended: 4 CPU cores, 8 GB RAM for comfortable use
-2. **SSH access** to that server (username + password or SSH key)
+   - Recommended: **[Hetzner CPX32](https://www.hetzner.com/cloud/regular-performance)** — 4 vCPUs, 8 GB RAM, 160 GB SSD, max. $12.59/month. Comfortably runs 6+ VS Code instances with Claude Code.
+2. **SSH access** to that server (a username and either a password or SSH key)
 3. **Your server's public IP address**
 4. **An OpenRouter API key** — get one free at [openrouter.ai](https://openrouter.ai/) (needed for Claude Code)
-5. **Port 3389 open** in your server's firewall/security group (for RDP connections)
+5. **Port 3389 open** in your server's firewall or security group (for RDP connections)
 
-> **AWS-specific:** In your EC2 instance's Security Group, add an inbound rule: Type = RDP, Port = 3389, Source = your IP address.
+> **AWS users:** In your EC2 instance's Security Group, add an inbound rule: Type = RDP, Port = 3389, Source = your IP address.
+>
+> **Hetzner users:** In your server's Firewall rules, allow TCP port 3389 inbound.
+
+### Security Note: Sudo Access
+
+The deployment script requires `sudo` access and adds a **NOPASSWD** entry to `/etc/sudoers` for the deploying user. This is required because:
+- xrdp runs as the user and needs to configure display settings
+- The session monitor service needs to restart xrdp on crash
+- GNOME keyring needs D-Bus session initialization
+
+**To remove after deployment** (if desired):
+```bash
+sudo visudo
+# Remove the line: username ALL=(ALL) NOPASSWD: ALL
+```
+Then reboot — the desktop will continue to work without sudo access.
 
 ---
 
 ## Quick Start
 
-### Step 1 — Upload the scripts to your server
+### Step 1 — Download and upload the scripts
 
-Run this from your local machine (replace `ubuntu` and `YOUR_SERVER_IP`):
+Run this from your local machine (replace `ubuntu` and `YOUR_SERVER_IP` with your values):
 
 ```bash
-git clone https://github.com/patelmm79/desktop-seed.git
+git clone https://github.com/patelmm79/linux-desktop-seed.git
 cd desktop-seed
 
 scp deploy-desktop.sh ubuntu@YOUR_SERVER_IP:/tmp/
@@ -75,14 +122,14 @@ Installation takes **5–15 minutes** depending on your server's internet speed.
 
 ### Step 3 — Connect via Remote Desktop
 
-Once installation completes, open **Microsoft Remote Desktop** on Windows (it's pre-installed) or install it on Android:
+Once installation finishes, open **Remote Desktop Connection** on Windows (search for it in the Start menu) or install **Microsoft Remote Desktop** from the Google Play Store on Android:
 
 1. Add a new connection
 2. Server address: `YOUR_SERVER_IP` (port 3389 is used automatically)
 3. Username and password: your Ubuntu account credentials
 4. Connect — the GNOME desktop should appear
 
-### Step 4 — Configure your API key
+### Step 4 — Set up your API key
 
 Inside the remote desktop, open a terminal and run:
 
@@ -91,11 +138,11 @@ echo 'export OPENROUTER_API_KEY="your_api_key_here"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-Then test Claude Code:
+Then test Claude Code works:
 
 ```bash
 claude --version
-claude   # starts an interactive session
+claude   # starts an interactive AI session
 ```
 
 ---
@@ -103,7 +150,7 @@ claude   # starts an interactive session
 ## Connecting from Different Devices
 
 ### Windows
-- Use **Remote Desktop Connection** (search in Start menu) or **Microsoft Remote Desktop** from the Microsoft Store
+- Use **Remote Desktop Connection** (search in the Start menu) or **Microsoft Remote Desktop** from the Microsoft Store
 - Address: `YOUR_SERVER_IP:3389`
 - Login with your Ubuntu username and password
 
@@ -111,7 +158,7 @@ claude   # starts an interactive session
 - Install **Microsoft Remote Desktop** from the Google Play Store
 - Tap **+** to add a PC, enter your server IP
 - GNOME is touch-friendly — landscape mode works best
-- Enable the on-screen keyboard: Settings > Accessibility > Keyboard > On-Screen Keyboard
+- Enable the on-screen keyboard: Settings → Accessibility → Keyboard → On-Screen Keyboard
 
 ---
 
@@ -138,21 +185,21 @@ gh repo clone owner/repo-name
 gh pr list
 ```
 
+### OpenCLAW
+```bash
+openclaw   # connect to remote Discord instances
+```
+
 ### Chromium Browser
-Type `chromium-browser` in the terminal, or find it in Applications > Internet.
+Type `chromium-browser` in a terminal, or find it in Applications → Internet.
+
+For more detail on using each tool, see [Usage Guide](docs/usage-guide.md).
 
 ---
 
 ## How Crash Detection Works
 
-One of the key improvements in this project is fast crash detection. Here's the problem it solves:
-
-**Before:** If your GNOME session crashed while you were away, you'd come back hours later to a broken desktop, with no logs about what happened or when.
-
-**After:** A background service (`xrdp-session-monitor.service`) checks the session every 30 seconds. If a crash is detected, it:
-1. Captures memory usage, CPU load, and running processes at the time of crash
-2. Writes forensic data to `/var/log/xrdp/session-monitor.log`
-3. Writes an alert to `/var/log/xrdp/session-alerts.log`
+A background service (`xrdp-session-monitor.service`) checks the session every 30 seconds. If something goes wrong, it captures memory usage, CPU load, and running processes at the moment of the problem — so you have real data instead of guessing.
 
 You can check the health of the system at any time:
 
@@ -168,34 +215,23 @@ bash scripts/analyze-session-logs.sh --memory
 
 # Full session history timeline
 bash scripts/analyze-session-logs.sh --timeline
-
-# Live monitor log
-tail -f /var/log/xrdp/session-monitor.log
 ```
 
 ---
 
 ## How Credential Storage Works
 
-VS Code and other apps use the operating system's keyring (a secure password vault) to store things like GitHub tokens and API keys. On a plain Ubuntu server with no desktop, this keyring doesn't exist — so you'd see errors like "OS keyring is not available for encryption."
+VS Code and other apps use the operating system's keyring (a secure password vault) to store things like GitHub tokens and API keys. On a plain Ubuntu server, this keyring doesn't exist — so you'd see errors like "OS keyring is not available for encryption."
 
-This project fixes that by starting `gnome-keyring-daemon` at the right point in the session startup sequence (inside the D-Bus session, before GNOME loads). All apps that start afterwards automatically inherit access to the keyring.
+This project fixes that by starting `gnome-keyring-daemon` at the right point in the session startup sequence. All apps that start afterwards automatically get access to the keyring.
 
-To use it manually:
-
-```bash
-# Store a secret
-secret-tool store --label="My API Key" service myapp account myuser
-
-# Retrieve it
-secret-tool lookup service myapp account myuser
-```
+See [Keyring Guide](docs/keyring-guide.md) for more detail.
 
 ---
 
-## Monitoring & Troubleshooting
+## Troubleshooting
 
-### Check that everything is running after deployment
+### Quick checks after deployment
 
 ```bash
 sudo bash tests/validate-install.sh
@@ -203,7 +239,21 @@ sudo bash tests/validate-install.sh
 
 This checks that all services are running, all tools are installed, and configuration is correct.
 
-### Services
+### Common problems
+
+| Problem | First thing to try |
+|---------|-------------------|
+| Can't connect via RDP | `systemctl status xrdp` — is the service running? |
+| Blank blue screen on connect | `sudo systemctl restart xrdp xrdp-sesman` |
+| Keyring errors in VS Code | Reconnect via RDP (restarts the session properly) |
+| Claude Code not working | `echo $OPENROUTER_API_KEY` — is the key set? |
+| High memory usage | `bash scripts/analyze-session-logs.sh --memory` |
+
+For detailed troubleshooting steps, see [Troubleshooting Guide](docs/TROUBLESHOOTING.md).
+
+---
+
+## Monitoring & Services
 
 ```bash
 # Check xrdp (the RDP server)
@@ -218,133 +268,16 @@ sudo systemctl restart xrdp
 sudo systemctl restart xrdp-session-monitor.service
 ```
 
-### Can't connect via RDP
-
-```bash
-# Is xrdp running?
-systemctl status xrdp
-
-# Is port 3389 listening?
-sudo ss -tuln | grep 3389
-
-# Is the firewall blocking it?
-sudo ufw status
-sudo ufw allow 3389   # open the port if needed
-
-# View the connection log
-tail -50 /var/log/xrdp-sesman.log
-```
-
-### Blank blue screen on connect
-
-The most common fix:
-
-```bash
-sudo systemctl restart xrdp xrdp-sesman
-```
-
-If that doesn't work, check the session log:
-
-```bash
-tail -50 /var/log/xrdp-sesman.log
-cat ~/.xsession-errors
-```
-
-### Keyring errors in VS Code
-
-```bash
-# Is the keyring daemon running?
-pgrep -af gnome-keyring-daemon
-
-# Is D-Bus initialized?
-echo $DBUS_SESSION_BUS_ADDRESS
-
-# If empty, the session didn't start correctly — reconnect via RDP
-```
-
-### Claude Code not working
-
-```bash
-# Check API key is set
-echo $OPENROUTER_API_KEY
-
-# Check Claude is installed
-claude --version
-
-# If key is missing, set it
-echo 'export OPENROUTER_API_KEY="your_key_here"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### High memory usage
-
-```bash
-# See what's using the most memory
-ps aux --sort=-%mem | head -10
-
-# View memory trends from the monitor
-bash scripts/analyze-session-logs.sh --memory
-```
-
----
-
-## Architecture Overview
-
-### Session Startup Sequence
-
-When you connect via RDP, here's what happens in order:
-
-```
-You connect → Microsoft Remote Desktop → your server's IP:3389
-                                             ↓
-                                    xrdp receives the connection
-                                             ↓
-                               xrdp-sesman launches startwm.sh
-                                             ↓
-                         startwm.sh sets environment variables
-                         (memory limits, display settings, etc.)
-                                             ↓
-                              dbus-launch starts a D-Bus session
-                         (D-Bus is the inter-process message bus
-                          that desktop apps use to talk to each other)
-                                             ↓
-                        gnome-keyring-daemon starts inside D-Bus
-                         (this is why credential storage works)
-                                             ↓
-                           gnome-session starts the full desktop
-                          (VS Code, Chromium, etc. run from here)
-                                             ↓
-                  xrdp-session-monitor watches in the background
-                         (alerts you if anything crashes)
-```
-
-### Script Structure
-
-```
-deploy-desktop.sh       ← Run this to deploy everything (~1200 lines)
-config.sh               ← Component list (used by deploy + tests)
-tests/
-  validate-install.sh   ← Run after deploy to verify everything works
-scripts/
-  session-monitor.sh    ← Installs the crash monitoring service
-  analyze-session-logs.sh ← Tools to analyze crash/health logs
-etc/xrdp/
-  startwm.sh            ← Session startup script (keyring + env setup)
-docs/                   ← Detailed guides (see below)
-```
-
-Each install function in `deploy-desktop.sh` is **idempotent** — meaning you can run the script multiple times safely. It checks whether a component is already installed and skips it if so.
-
 ---
 
 ## Configuration
 
 ### Adjust memory limits per process
 
-Edit `/etc/xrdp/startwm.sh`, find the `ulimit` line and change the value (in KB):
+Edit `/etc/xrdp/startwm.sh`, find the `ulimit` line:
 
 ```bash
-ulimit -v 2097152  # 2097152 KB = ~2 GB per process
+ulimit -v 2097152  # 2097152 KB = approximately 2 GB per process
 ```
 
 ### Adjust monitoring thresholds
@@ -383,19 +316,46 @@ CPU_THRESHOLD=75      # send alert when CPU reaches 75%
 
 ---
 
+## Known Limitations
+
+- **Wayland not supported** — this deployment uses Xvnc which only supports X11; GNOME is forced to X11 mode
+- **Single-user only** — designed for one desktop user; multi-user support is not implemented
+- **No sound via RDP** — audio forwarding over RDP is not configured
+- **No printer sharing** — printer redirection is not set up
+
+---
+
 ## Documentation
 
 | Guide | Who It's For | What It Covers |
 |-------|-------------|----------------|
-| [Quick Deploy](docs/QUICK-DEPLOY.md) | Everyone | Condensed deployment steps |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Operators | Issues encountered and fixes applied |
-| [Usage Guide](docs/usage-guide.md) | End users | Using VS Code, Claude Code, GitHub CLI |
-| [SSH Setup](docs/ssh-setup-guide.md) | Windows users | Setting up SSH key authentication |
-| [Crash Recovery](docs/crash-recovery-guide.md) | Operators | Understanding and responding to crashes |
-| [Keyring Guide](docs/keyring-guide.md) | Developers | Storing and retrieving credentials |
-| [Monitoring Reference](docs/README_MONITORING.md) | Operators | Full monitoring configuration |
-| [Deployment Summary](docs/DEPLOYMENT_SUMMARY.md) | Architects | What gets installed and where |
-| [Integration Guide](docs/INTEGRATION_GUIDE.md) | Developers | How components interact |
+| [Quick Deploy](docs/QUICK-DEPLOY.md) | Everyone | Condensed deployment steps on one page |
+| [Usage Guide](docs/usage-guide.md) | Beginners | Using VS Code, Claude Code, GitHub CLI after setup |
+| [SSH Setup](docs/ssh-setup-guide.md) | Windows beginners | Setting up SSH key authentication |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Everyone | Fixes for common problems, symptom-by-symptom |
+| [Crash Recovery](docs/crash-recovery-guide.md) | Operators | Understanding crash detection and session monitoring |
+| [Keyring Guide](docs/keyring-guide.md) | Developers | How credential storage works and how to use it |
+| [Monitoring Reference](docs/README_MONITORING.md) | Operators | Full monitoring configuration and commands |
+| [Technical Reference](docs/TECHNICAL-REFERENCE.md) | Developers | Architecture, component integration, known issues |
+
+---
+
+## Script Structure
+
+```
+deploy-desktop.sh          ← Run this to deploy everything (~1200 lines)
+config.sh                  ← Component list (used by deploy + tests)
+tests/
+  validate-install.sh      ← Run after deploy to verify everything works
+scripts/
+  session-monitor.sh       ← Installs the crash monitoring service
+  analyze-session-logs.sh  ← Tools to analyze crash and health logs
+etc/xrdp/
+  startwm.sh               ← Session startup script (keyring + env setup)
+docs/                      ← Guides (see table above)
+```
+
+Each install function in `deploy-desktop.sh` is **idempotent** — you can run the script multiple times safely. It checks whether each component is already installed and skips it if so.
 
 ---
 
@@ -409,58 +369,7 @@ The main script (`deploy-desktop.sh`) follows these conventions:
 - `[[ ]]` for conditionals, not `[ ]`
 - 4-space indentation
 
-When fixing issues found on a real VM, update the repository scripts — not just the remote machine. This ensures future deployments automatically include the fix.
-
----
-
-## Testing Environment
-
-This deployment has been tested on the following infrastructure:
-
-| Component | Details |
-|-----------|---------|
-| **Provider** | Hetzner Cloud |
-| **Virtualization** | QEMU/KVM |
-| **Server Type** | <!-- TODO: Add exact model (e.g., CPX21, CAX21) --> |
-| **OS** | Ubuntu 24.04.4 LTS (Noble Numbat) |
-| **RAM** | 8 GB |
-| **CPU** | 4 vCPU |
-| **Storage** | SSD (system disk) |
-| **Monthly Cost** | <!-- TODO: Add cost estimate --> |
-| **Public IP** | 2a01:4f9:c014:48a1::1 (IPv6) |
-
-### Test VM
-- **IP:** 204.168.182.32 (behind NAT)
-- **Hostname:** ubuntu-8gb-hel1-1
-- **Purpose:** Development desktop with RDP access
-
-### Other Providers Tested
-- <!-- TODO: Add other cloud providers if tested (AWS, DigitalOcean, etc.) -->
-
-### Known Limitations
-- **Wayland not supported** - This deployment uses Xvnc which only supports X11. GNOME will be forced to use X11.
-- **Single-user only** - Designed for a single desktop user (desktopuser). Multi-user support not implemented.
-- **No sound via RDP** - Audio forwarding over RDP is not configured.
-- **No printer sharing** - Printer redirection over RDP not set up.
-- **Console session conflict** - If a user is logged into the console (physical display), RDP may have issues.
-
-### Verified Working
-- GNOME Desktop via RDP (xrdp + Xvnc)
-- VS Code
-- Claude Code
-- OpenCLAW
-- Chromium Browser
-- GitHub CLI
-- Bun runtime
-- Session monitoring (30-second checks)
-- Crash detection and recovery
-
----
-
-```bash
-# Validate script syntax before committing
-bash -n deploy-desktop.sh
-```
+When fixing issues found on a real server, update the repository scripts — not just the remote machine. This ensures future deployments automatically include the fix.
 
 ---
 

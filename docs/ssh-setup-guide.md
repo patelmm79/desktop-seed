@@ -1,62 +1,56 @@
-# SSH Setup Guide for Remote Server Access
+# SSH Setup Guide
 
 This guide walks you through setting up SSH keys so you can connect to your remote server without entering a password each time.
 
-## Overview
+SSH keys are more secure than passwords, and once set up, they're more convenient too — no typing a password every time you connect.
 
-You have two machines:
-- **Your computer** (Windows) — local machine
-- **Remote server** (Ubuntu/Hetzner) — where Claude Code installation failed
+## What You're Working With
 
-## Prerequisites
-
-- Access to your Windows computer
-- Login credentials for your remote server (IP: 204.168.182.32, username: root)
+- **Your computer** — Windows (local machine)
+- **Remote server** — Ubuntu server you want to connect to
 
 ---
 
-## Step 1: Generate SSH Keys on Your Computer
+## Step 1 — Generate an SSH Key on Your Computer
 
-1. Open PowerShell
+1. Open **PowerShell** (search for it in the Start menu)
 2. Run:
 
 ```bash
 ssh-keygen -t ed25519
 ```
 
-3. Press **Enter** three times (accept defaults, no passphrase)
+3. Press **Enter** three times to accept the defaults (no passphrase is fine for most use cases)
 
-This creates two files:
-- `C:\Users\YOUR_USERNAME\.ssh\id_ed25519` (private key — keep secret)
-- `C:\Users\YOUR_USERNAME\.ssh\id_ed25519.pub` (public key — safe to share)
+This creates two files in `C:\Users\YOUR_USERNAME\.ssh\`:
+- `id_ed25519` — your **private key** (keep this secret, never share it)
+- `id_ed25519.pub` — your **public key** (safe to copy to servers)
 
 ---
 
-## Step 2: Copy Public Key to Remote Server
+## Step 2 — Copy Your Public Key to the Server
 
 ### 2.1 Get your public key
 
-In PowerShell, run:
+In PowerShell:
 
 ```bash
 type C:\Users\YOUR_USERNAME\.ssh\id_ed25519.pub
 ```
 
-Copy the entire output (it starts with `ssh-ed25519` and ends with your email/computer name).
+Copy the entire output — it starts with `ssh-ed25519` and ends with your computer name or email.
 
-### 2.2 Log into your remote server
-
-In PowerShell, run:
+### 2.2 Log into your server with your password (one last time)
 
 ```bash
-ssh root@204.168.182.32
+ssh root@YOUR_SERVER_IP
 ```
 
-Enter your password when prompted. You should now see a prompt like `root@your-server:~#`.
+Enter your password when prompted.
 
-### 2.3 Add the public key
+### 2.3 Add the public key to the server
 
-On the remote server, run:
+Once logged in, run:
 
 ```bash
 mkdir -p ~/.ssh
@@ -70,9 +64,7 @@ This opens a text editor.
 2. Press **Ctrl+O** then **Enter** to save
 3. Press **Ctrl+X** to exit
 
-### 2.4 Secure the key file
-
-On the remote server, run:
+### 2.4 Secure the file
 
 ```bash
 chmod 600 ~/.ssh/authorized_keys
@@ -80,74 +72,55 @@ chmod 600 ~/.ssh/authorized_keys
 
 ### 2.5 Log out
 
-On the remote server, type:
-
 ```bash
 exit
 ```
 
-You're back on your Windows machine.
-
 ---
 
-## Step 3: Create SSH Config Alias
+## Step 3 — Create a Shortcut (SSH Config)
 
-Now you can connect with a short alias instead of typing the IP each time.
+Instead of typing your server's IP every time, you can give it a short nickname.
 
-### 3.1 Open Notepad as Admin
+### 3.1 Open the SSH config file
 
-1. Search for "Notepad" in the Start menu
-2. Right-click → Run as administrator
-3. File → Open
-4. Navigate to `C:\Users\YOUR_USERNAME\.ssh\`
-5. In the file type dropdown, select "All Files (*.*)"
-6. Open `config` (if it doesn't exist, you'll create it new)
+1. Open **Notepad** (search in the Start menu)
+2. File → Open
+3. Navigate to `C:\Users\YOUR_USERNAME\.ssh\`
+4. In the file type dropdown, select **All Files (\*.\*)**
+5. Open the file named `config` — if it doesn't exist, just start a new file
 
-### 3.2 Add the config
-
-If the file is empty or new, add:
+### 3.2 Add your server
 
 ```
-Host hetzner
-    HostName 204.168.182.32
+Host myserver
+    HostName YOUR_SERVER_IP
     User root
     IdentityFile C:\Users\YOUR_USERNAME\.ssh\id_ed25519
 ```
 
-Replace `YOUR_USERNAME` with your actual Windows username.
+Replace `YOUR_USERNAME` with your actual Windows username and `YOUR_SERVER_IP` with your server's IP.
 
-### 3.3 Save
+### 3.3 Save the file
 
-1. File → Save
-2. Make sure filename is just `config` (not "config.txt")
-3. Save to `C:\Users\YOUR_USERNAME\.ssh\`
+File → Save. Make sure the filename is exactly `config` (not `config.txt`). Save it to `C:\Users\YOUR_USERNAME\.ssh\`.
 
 ---
 
-## Step 4: Test the Connection
+## Step 4 — Test It
 
-In PowerShell, run:
+In PowerShell:
 
 ```bash
-ssh hetzner "echo 'success'"
+ssh myserver "echo 'connection successful'"
 ```
 
-If it works, you'll see "success" without being asked for a password.
+You should see `connection successful` without being asked for a password.
 
----
-
-## Usage
-
-Now you can connect to your server anytime with:
+From now on, connect to your server with just:
 
 ```bash
-ssh hetzner
-```
-
-To run a single command without logging in:
-
-```bash
-ssh hetzner "whoami"
+ssh myserver
 ```
 
 ---
@@ -155,10 +128,14 @@ ssh hetzner "whoami"
 ## Troubleshooting
 
 ### "Permission denied (publickey)"
-Your public key wasn't added correctly. Go back to Step 2.3 and verify the key is in `authorized_keys`.
+The public key wasn't added correctly. Go back to Step 2.3 and make sure the key is in `~/.ssh/authorized_keys` on the server.
 
-### "Could not resolve hostname hetzner"
-The config file wasn't saved correctly. Verify Step 3.3 — the file must be named exactly `config`, not `config.txt`.
+### "Could not resolve hostname myserver"
+The config file wasn't saved correctly. Check Step 3.3 — the file must be named exactly `config`, not `config.txt`. Open File Explorer, navigate to `C:\Users\YOUR_USERNAME\.ssh\`, and verify the filename.
 
-### Still asks for password
-Make sure the IdentityFile path in your config matches where your private key actually is.
+### Still being asked for a password
+The `IdentityFile` path in your config might not match where your private key is saved. Open PowerShell and run:
+```bash
+ls C:\Users\YOUR_USERNAME\.ssh\
+```
+Verify that `id_ed25519` exists there, and that the path in your config file matches exactly.

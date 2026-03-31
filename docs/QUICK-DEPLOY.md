@@ -1,128 +1,83 @@
-# Quick Deployment Reference
+# Quick Deploy Reference
 
-## TL;DR - Just Deploy It
+This is the condensed version. If you get stuck anywhere, see the [full README](../README.md) or the [Troubleshooting Guide](TROUBLESHOOTING.md).
 
+---
+
+## Before You Start
+
+You need:
+- An Ubuntu 20.04/22.04/24.04 server with SSH access
+- Port **3389** open in the server's firewall (for RDP)
+- An [OpenRouter API key](https://openrouter.ai/) (free, needed for Claude Code)
+
+---
+
+## Deploy (3 steps)
+
+**Step 1 — Upload the scripts** (run on your local machine):
 ```bash
-# Step 1: Copy script to AWS
-scp deploy-desktop.sh ubuntu@YOUR_AWS_IP:/tmp/
-scp config.sh ubuntu@YOUR_AWS_IP:/tmp/
+git clone https://github.com/patelmm79/linux-desktop-seed.git
+cd linux-desktop-seed
+scp deploy-desktop.sh ubuntu@YOUR_SERVER_IP:/tmp/
+scp config.sh ubuntu@YOUR_SERVER_IP:/tmp/
+```
 
-# Step 2: Run deployment
-ssh ubuntu@YOUR_AWS_IP
+**Step 2 — Run the installer** (run on the server via SSH):
+```bash
+ssh ubuntu@YOUR_SERVER_IP
 sudo bash /tmp/deploy-desktop.sh
-
-# Step 3: Test RDP connection
-# Open Remote Desktop, connect to YOUR_AWS_IP:3389
-# Use your Ubuntu username/password
 ```
+Wait 5–15 minutes. You'll see progress messages. When it finishes, you're ready.
 
-**That's it!** You should see the GNOME desktop.
+**Step 3 — Connect via Remote Desktop:**
+- Windows: Open **Remote Desktop Connection**, enter `YOUR_SERVER_IP`
+- Android: Open **Microsoft Remote Desktop**, add `YOUR_SERVER_IP`
+- Username and password: your Ubuntu account credentials
 
 ---
 
-## If You Get Blank Blue Screen
+## After Connecting
+
+Set your OpenRouter API key so Claude Code works:
 
 ```bash
-# SSH to the VM and run diagnostics
-bash /tmp/diagnose-rdp.sh
-
-# Most common fix: restart xrdp
-sudo systemctl restart xrdp xrdp-sesman
+echo 'export OPENROUTER_API_KEY="your_api_key_here"' >> ~/.bashrc
+source ~/.bashrc
+claude --version   # should print a version number
 ```
 
 ---
 
-## AWS Security Group Setup (Required)
-
-1. AWS EC2 Console → Your Instance
-2. Security tab → Security group name
-3. **Edit Inbound Rules** → **Add Rule**
-   - Type: **RDP**
-   - Protocol: **TCP**
-   - Port: **3389**
-   - Source: **Your IP** (or 0.0.0.0/0)
-4. **Save rules**
-
----
-
-## What Gets Installed
-
-- ✓ GNOME Desktop (tablet-friendly UI)
-- ✓ xrdp (RDP server on port 3389)
-- ✓ VS Code (code editor)
-- ✓ Claude Code (AI assistant)
-- ✓ OpenRouter CLI (AI models)
-- ✓ Chromium (web browser)
-- ✓ GitHub CLI (git management)
-
----
-
-## Connection Details
-
-**From Windows:**
-- Application: Remote Desktop Connection
-- Address: `YOUR_AWS_IP:3389`
-- Username: Ubuntu username
-- Password: Ubuntu password
-
-**From Android Tablet:**
-- App: Microsoft Remote Desktop (from Play Store)
-- Server: `YOUR_AWS_IP:3389`
-- Username: Ubuntu username
-- Password: Ubuntu password
-
----
-
-## Troubleshooting One-Liners
+## Verify Everything Installed Correctly
 
 ```bash
-# Check xrdp is running
-sudo systemctl status xrdp
-
-# Restart xrdp
-sudo systemctl restart xrdp xrdp-sesman
-
-# Check port 3389 is listening
-sudo ss -tuln | grep 3389
-
-# View xrdp logs
-sudo tail -50 /var/log/xrdp-sesman.log
-
-# Test GNOME session
-gnome-session --version
-
-# Fix permissions on startwm.sh
-sudo chmod +x /etc/xrdp/startwm.sh
+sudo bash tests/validate-install.sh
 ```
 
 ---
 
-## Documentation
+## Common Fixes
 
-- **Full Guide:** See `DEPLOYMENT-GUIDE.md`
-- **What Was Fixed:** See `RDP-FIX-SUMMARY.md`
-- **Usage After Setup:** See `docs/usage-guide.md`
-- **Diagnostic Tool:** Run `bash tests/diagnose-rdp.sh`
+| Problem | Fix |
+|---------|-----|
+| Blank blue screen after connecting | `sudo systemctl restart xrdp xrdp-sesman` |
+| Can't connect (connection refused) | Check port 3389 is open in your server's firewall |
+| `claude` command not found | Close and reopen the terminal, or run `source ~/.bashrc` |
+| "OS keyring not available" in VS Code | Disconnect and reconnect via RDP |
 
----
-
-## Key Changes Made
-
-The deployment script was updated to properly initialize the GNOME session for RDP:
-
-```bash
-# OLD (broken):
-exec /usr/bin/gnome-session
-
-# NEW (fixed):
-export GNOME_SHELL_SESSION_MODE=ubuntu
-export XDG_SESSION_TYPE=x11
-export XDG_CURRENT_DESKTOP=GNOME
-exec dbus-launch --exit-with-session /usr/bin/gnome-session
-```
-
-This ensures D-Bus (the desktop's message bus) is properly initialized, fixing the blank blue screen issue.
+For more, see [Troubleshooting Guide](TROUBLESHOOTING.md).
 
 ---
 
-**Still having issues?** Run: `bash /tmp/diagnose-rdp.sh`
+## Firewall Setup (AWS)
+
+1. AWS EC2 Console → your instance → **Security** tab
+2. Click the security group name → **Edit Inbound Rules** → **Add Rule**
+   - Type: **RDP**, Protocol: **TCP**, Port: **3389**, Source: **My IP**
+3. Save rules
+
+## Firewall Setup (Hetzner)
+
+1. Hetzner Cloud Console → Firewalls → your firewall
+2. Add inbound rule: Protocol TCP, Port 3389, Source: `0.0.0.0/0` (or your IP)

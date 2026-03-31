@@ -1,200 +1,152 @@
-# Crash Recovery & Session Monitoring Guide
+# Crash Recovery & Session Monitoring
 
-## Overview
+## What This Does
 
-This guide explains the enhanced crash recovery and monitoring systems implemented to prevent and diagnose RDP session crashes.
+When you're using the remote desktop and something goes wrong — a crash, memory exhaustion, or an unresponsive session — this system:
 
-## What Changed
+1. **Detects the problem within 30 seconds** (compared to not knowing until you reconnect hours later)
+2. **Captures a snapshot** of what was happening — memory usage, CPU load, running processes — at the moment of the crash
+3. **Writes everything to log files** so you can diagnose what happened
 
-### 1. Enhanced startwm.sh (Session Startup Script)
+---
 
-**Location:** `/etc/xrdp/startwm.sh`
+## The Two Components
 
-**Improvements:**
+### Session Monitor Service
 
-- **Memory Limits**: Sets per-process virtual memory limit (~2GB) to prevent GNOME from consuming unlimited memory
-- **Crash Logging**: Traps exit signals to log detailed crash information including:
-  - Exit code and signal
-  - Memory snapshot at time of crash
-  - Top 5 memory-consuming processes
-  - Timestamp for correlation with system logs
+A background service (`xrdp-session-monitor.service`) runs continuously and checks every 30 seconds:
 
-- **Session Logging**: Enhanced startup logging with:
-  - Session metadata (DISPLAY, UID, USER)
-  - Available system memory
-  - CPU count
-  - Session initialization status
+- **Memory usage** — alerts if system memory exceeds 80%
+- **CPU usage** — alerts if CPU exceeds 75%
+- **Session health** — scans logs for recent crash indicators
 
-- **Error Handling**: Uses `set -euo pipefail` for strict error checking
+This service starts automatically at boot and runs regardless of whether you're connected.
 
-### 2. Session Monitor Service
+### Session Startup Script
 
-**Location:** `/usr/local/bin/xrdp-session-monitor` (systemd service)
+When you connect via RDP, `startwm.sh` runs to start your desktop session. It also:
 
-**How It Works:**
+- Sets a **2 GB per-process memory limit** to prevent one runaway process from crashing everything
+- Registers a **crash handler** — if the session exits unexpectedly, it logs the exit code, signal, and a memory snapshot before exiting
 
-The monitor runs continuously as a background service and checks every 30 seconds for:
+---
 
-- **Memory Usage**: Alerts if any session exceeds 80% of available memory
-- **CPU Usage**: Alerts if any session exceeds 75% CPU utilization
-- **Crash Detection**: Scans xrdp-sesman logs for recent errors
-- **Performance Reports**: Generates periodic snapshots of system state
+## Checking System Health
 
-**Log Files:**
+### Quick health summary
+```bash
+bash scripts/analyze-session-logs.sh --summary
+```
 
-- `/var/log/xrdp/session-monitor.log` — Detailed monitoring checks and reports
-- `/var/log/xrdp/session-alerts.log` — Alerts triggered by threshold violations
+### See recent crashes
+```bash
+bash scripts/analyze-session-logs.sh --crashes
+```
 
-## Viewing Monitoring Data
+### Memory usage over time
+```bash
+bash scripts/analyze-session-logs.sh --memory
+```
 
-### Check Current Status
+### Session history (connects and disconnects)
+```bash
+bash scripts/analyze-session-logs.sh --timeline
+```
+
+### Watch the monitor in real time
+```bash
+tail -f /var/log/xrdp/session-monitor.log   # all checks
+tail -f /var/log/xrdp/session-alerts.log    # alerts only
+```
+
+---
+
+## What Happens When a Crash Occurs
+
+| Time after crash | What happens |
+|-----------------|-------------|
+| 0 seconds | Session exits; startup script logs exit code, signal, and memory snapshot |
+| ~5 seconds | xrdp detects the window manager exited |
+| ~30 seconds | Monitor service checks logs and writes an alert |
+| ~60 seconds | You can run `--crashes` to see the full report |
+
+After a crash you'll typically see a blank screen or connection drop on your RDP client. Reconnect via Remote Desktop — xrdp will start a fresh session.
+
+---
+
+## Responding to Alerts
+
+### High memory alert
+
+If you see memory alerts in the logs:
 
 ```bash
-# View service status
+# See what's using the most memory
+ps aux --sort=-%mem | head -10
+```
+
+Common causes:
+- Too many open browser tabs in Chromium
+- Long-running VS Code sessions with many extensions
+- GNOME Shell memory leak (disconnect and reconnect to reset)
+
+If memory is consistently near the limit, consider increasing your server's RAM or reducing the per-process limit in `/etc/xrdp/startwm.sh`.
+
+### High CPU alert
+
+```bash
+# See what's using CPU
+ps aux --sort=-%cpu | head -10
+```
+
+A brief CPU spike is normal. Sustained high CPU (minutes, not seconds) is worth investigating.
+
+---
+
+## Managing the Monitor Service
+
+```bash
+# Check if it's running
 systemctl status xrdp-session-monitor.service
 
-# View recent monitoring data (real-time)
-tail -f /var/log/xrdp/session-monitor.log
-
-# View alerts only
-tail -f /var/log/xrdp/session-alerts.log
-```
-
-### Generate a Report
-
-```bash
-# One-time monitoring check
-sudo bash /tmp/session-monitor.sh --test
-```
-
-### View Session Crash Information
-
-```bash
-# Check .xsession-errors for session start/crash details
-sudo -u desktopuser cat ~/.xsession-errors | tail -50
-
-# Check xrdp-sesman log for window manager crashes
-tail -100 /var/log/xrdp/xrdp-sesman.log
-```
-
-## Understanding the Previous Crash
-
-**When:** 2026-03-29 07:50:04 UTC
-**Duration:** ~3 hours
-**Exit Signal:** SIGKILL (signal 9)
-**Exit Code:** 255
-
-**What Happened:**
-
-1. Session started normally at 04:45:24
-2. GNOME session ran for ~3 hours
-3. System forcibly terminated the window manager (gnome-session)
-4. Possible causes:
-   - Memory exhaustion despite available RAM
-   - GNOME Shell crash due to a bug
-   - Third-party extension/plugin conflict
-   - System resource pressure
-
-**Evidence:** The system still had ~3.7GB free memory when it crashed, suggesting the crash was likely due to a memory leak within GNOME itself or a triggering bug rather than system-wide memory exhaustion.
-
-## Prevention Strategies
-
-### Memory Management
-
-The new `ulimit -v 2097152` (2GB per-process limit) in startwm.sh helps by:
-
-- Preventing runaway memory allocation
-- Catching memory leaks early before they crash the system
-- Allowing other services to remain stable
-
-### Monitoring
-
-The session monitor service helps by:
-
-- **Early Detection**: Catches memory/CPU issues before they cause crashes
-- **Historical Records**: Logs all resource usage for post-mortem analysis
-- **Alerting**: Notifies through syslog and log files when thresholds are exceeded
-
-## Troubleshooting
-
-### Monitor Service Not Running
-
-```bash
-# Check status
-systemctl status xrdp-session-monitor.service
-
-# View service logs
+# View its logs
 journalctl -u xrdp-session-monitor.service -n 50
 
-# Restart service
-systemctl restart xrdp-session-monitor.service
+# Restart it
+sudo systemctl restart xrdp-session-monitor.service
+
+# Disable it (if you need to)
+sudo systemctl stop xrdp-session-monitor.service
+sudo systemctl disable xrdp-session-monitor.service
+
+# Re-enable it
+sudo systemctl enable xrdp-session-monitor.service
+sudo systemctl start xrdp-session-monitor.service
 ```
 
-### No Monitoring Data
+---
+
+## Adjusting Thresholds
+
+Edit `/var/lib/xrdp/session-monitor-config.sh`:
 
 ```bash
-# Check log files exist and are writable
-ls -la /var/log/xrdp/
-
-# Run diagnostic test
-sudo bash /tmp/session-monitor.sh --test
-
-# Check for xrdp sessions
-ps aux | grep Xvnc
+MEMORY_THRESHOLD=80      # alert when system memory reaches 80%
+CPU_THRESHOLD=75         # alert when CPU reaches 75%
 ```
 
-### High Memory Alerts
-
-If you see frequent high memory alerts:
-
-1. Check what's consuming memory:
-   ```bash
-   ps aux --sort=-%mem | head -10
-   ```
-
-2. Identify the process:
-   - GNOME Shell (`gnome-shell`)
-   - Window manager (`mutter`)
-   - Desktop daemon (`gnome-session`)
-
-3. Possible solutions:
-   - Reduce desktop extensions/plugins
-   - Disable animations (Settings > Appearance > Animation)
-   - Use a lighter desktop environment (XFCE instead of GNOME)
-   - Increase server RAM
-
-## Next Steps
-
-To further improve stability:
-
-1. **Monitor for 24-48 hours** and collect baseline memory/CPU data
-2. **Identify problematic applications** from monitoring logs
-3. **Adjust thresholds** based on your typical workload:
-   ```bash
-   # Edit these in /var/lib/xrdp/session-monitor-config.sh
-   MEMORY_THRESHOLD=80      # Current: 80%
-   CPU_THRESHOLD=75         # Current: 75%
-   ```
-
-4. **Consider lighter alternatives** if GNOME is consistently high-memory:
-   - XFCE Desktop (lighter, still fully featured)
-   - Cinnamon Desktop (GNOME-based, lighter)
-
-## Disabling Monitoring
-
-If you need to disable the monitoring service:
-
+Restart the service after changing:
 ```bash
-sudo bash /tmp/session-monitor.sh --disable
+sudo systemctl restart xrdp-session-monitor.service
 ```
 
-This will:
-- Stop the background service
-- Remove systemd service files
-- Keep historical logs intact
+---
 
-## References
+## Log File Locations
 
-- xrdp Documentation: http://www.xrdp.org/
-- GNOME Session Management: https://wiki.gnome.org/Projects/GnomeSession
-- Linux ulimit: `man bash` (search for "ulimit")
+| File | Contents |
+|------|----------|
+| `/var/log/xrdp/session-monitor.log` | All health checks (every 30 seconds) |
+| `/var/log/xrdp/session-alerts.log` | Alerts only (thresholds exceeded, crashes) |
+| `/var/log/xrdp-sesman.log` | xrdp session manager — connection and exit events |
+| `~/.xsession-errors` | GNOME session errors (per user) |

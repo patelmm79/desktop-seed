@@ -1,163 +1,228 @@
 # Troubleshooting Guide
 
-This document captures issues encountered during deployment and how they were resolved.
-
-## Tested On
-
-| Component | Details |
-|-----------|---------|
-| **Provider** | Hetzner Cloud |
-| **Virtualization** | QEMU/KVM |
-| **Server Type** | <!-- TODO: Add exact model (e.g., CPX21, CAX21) --> |
-| **OS** | Ubuntu 24.04.4 LTS |
-| **RAM** | 8 GB |
-| **CPU** | 4 vCPU |
-| **Test IP** | 204.168.182.32 |
-| **Other Providers** | <!-- TODO: Add other providers if tested --> |
-
-## Issues Addressed
-
-### 1. RDP Black Screen (gnome-session crash)
-
-**Symptom:** Connect via RDP, see black screen with movable cursor, then instant disconnect
-
-**Root Cause:** `gnome-session` has compatibility issues with xrdp on Ubuntu 24.04. The session manager crashes silently when invoked via xrdp-sesman.
-
-**Solution:** Start `gnome-shell` directly instead of through `gnome-session`:
-
-```bash
-# Instead of: exec /usr/bin/gnome-session --session=ubuntu
-exec nohup gnome-shell
-```
-
-**File:** `etc/xrdp/startwm.sh`
+Find the problem you're experiencing and follow the steps. If a fix doesn't work, move to the next one in the section.
 
 ---
 
-### 2. D-Bus Session Not Initialized
+## I can't connect — Remote Desktop shows "connection refused" or times out
 
-**Symptom:** Desktop components don't communicate, blank blue screen
+**Check 1: Is port 3389 open in your firewall?**
 
-**Root Cause:** D-Bus session bus not started before GNOME components
+This is the most common cause. Your server's firewall (security group) needs to allow inbound traffic on port 3389.
 
-**Solution:** Use `dbus-launch` to initialize D-Bus:
+- **AWS:** EC2 Console → your instance → Security tab → Edit inbound rules → add RDP (TCP 3389) from your IP
+- **Hetzner:** Cloud Console → Firewalls → add inbound rule: TCP port 3389
+- **DigitalOcean:** Networking → Firewalls → Inbound rules → add TCP port 3389
 
+**Check 2: Is xrdp running on the server?**
+
+SSH into your server and run:
 ```bash
-if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
-    eval $(dbus-launch --sh-syntax)
-fi
+systemctl status xrdp
+```
+
+If the status shows `inactive` or `failed`:
+```bash
+sudo systemctl start xrdp
+sudo systemctl enable xrdp
+```
+
+**Check 3: Is port 3389 actually listening?**
+```bash
+sudo ss -tuln | grep 3389
+```
+If nothing is returned, xrdp isn't listening. Try restarting it:
+```bash
+sudo systemctl restart xrdp xrdp-sesman
+```
+
+**Check 4: Is a local firewall blocking it?**
+```bash
+sudo ufw status
+```
+If it shows `Status: active` and port 3389 isn't in the list, add it:
+```bash
+sudo ufw allow 3389
 ```
 
 ---
 
-### 3. Keyring "OS keyring is not available" Errors
+## I see a blank blue screen after connecting (no taskbar, no icons)
 
-**Symptom:** VS Code shows "OS keyring is not available for encryption" errors
-
-**Root Cause:** GNOME keyring daemon needs to start inside D-Bus session context, not before
-
-**Solution:** Start keyring after D-Bus is initialized:
+This usually means the GNOME session didn't start correctly. The most common fix:
 
 ```bash
-eval $(gnome-keyring-daemon --start --components=secrets,pkcs11)
+sudo systemctl restart xrdp xrdp-sesman
 ```
 
----
+Disconnect and reconnect via Remote Desktop after running this.
 
-### 4. Profile Script Unbound Variable Errors
-
-**Symptom:** Session exits immediately with code 1, no desktop appears
-
-**Root Cause:** Some Ubuntu profile scripts use `set -u` and reference unbound variables. When combined with `set -euo pipefail` in startwm.sh, the script exits on any unbound variable.
-
-**Solution:** Load profiles with defensive error handling:
-
+**If that doesn't work**, check the session log for clues:
 ```bash
-set +u
-[ -r /etc/profile ] && . /etc/profile 2>/dev/null || true
-[ -r "$HOME/.profile" ] && . "$HOME/.profile" 2>/dev/null || true
-set -u
+tail -50 /var/log/xrdp-sesman.log
+cat ~/.xsession-errors
 ```
 
----
-
-### 5. GNOME Tries to Use Wayland (Xvnc doesn't support Wayland)
-
-**Symptom:** Session fails to start, X errors in logs
-
-**Root Cause:** By default, GNOME tries to use Wayland display server, but Xvnc only supports X11
-
-**Solution:** Force X11 backend:
-
+**If the log shows D-Bus errors:**
+The session startup script handles D-Bus initialization automatically. If it's failing, re-run the deployment to restore the correct startup script:
 ```bash
-export GDK_BACKEND=x11
-export XDG_SESSION_TYPE=x11
-export GNOME_SHELL_WAYLANDRESTART=false
-```
-
----
-
-### 6. Profile Not Reapplied After Script Fixes
-
-**Symptom:** Issues persist even after script updates
-
-**Root Cause:** VM wasn't redeployed after script fixes were committed to the repository
-
-**Solution:** Always redeploy after updating deployment scripts:
-
-```bash
-scp deploy-desktop.sh user@vm:/tmp/
-ssh user@vm
 sudo bash /tmp/deploy-desktop.sh
 ```
 
 ---
 
-## Recovery Commands
+## I see a black screen with a cursor, then get disconnected immediately
 
-If RDP breaks after a deployment:
+This is usually a GNOME session crash during startup.
 
+**Check the session errors:**
 ```bash
-# Check xrdp status
-ssh user@vm "systemctl status xrdp"
+tail -50 ~/.xsession-errors
+tail -50 /var/log/xrdp-sesman.log
+```
 
-# Check session errors
-ssh user@vm "tail -30 ~/.xsession-errors"
+**Try restarting xrdp:**
+```bash
+sudo systemctl restart xrdp xrdp-sesman
+```
 
-# Check sesman logs
-ssh user@vm "tail -30 /var/log/xrdp-sesman.log"
-
-# Restart xrdp
-ssh user@vm "sudo systemctl restart xrdp"
-
-# Quick fix - copy working startwm.sh:
-scp etc/xrdp/startwm.sh user@vm:/etc/xrdp/
-ssh user@vm "chmod +x /etc/xrdp/startwm.sh && systemctl restart xrdp"
+**If the problem persists**, check whether the session startup script is intact:
+```bash
+cat /etc/xrdp/startwm.sh
+```
+The file should start with `#!/bin/bash` and contain `gnome-shell` or `gnome-session`. If it looks wrong or empty, re-run the deployment:
+```bash
+sudo bash /tmp/deploy-desktop.sh
 ```
 
 ---
 
-## Prevention
+## VS Code shows "OS keyring is not available for encryption"
 
-The deployment script now includes `validate_deployment()` which checks:
+This means the GNOME Keyring (secure password storage) isn't accessible in the current session. This usually fixes itself on the next reconnect.
 
-- xrdp service is running
-- startwm.sh is executable
-- GDK_BACKEND=x11 is configured
-- dbus-launch is available
-- gnome-shell is installed
+**Fix: Disconnect and reconnect via Remote Desktop.** The keyring daemon starts during session initialization, so a fresh connection should clear this.
+
+**If it keeps happening**, check whether the keyring daemon is running inside your session:
+```bash
+pgrep -af gnome-keyring-daemon
+```
+If nothing is returned, and the issue persists after reconnecting, re-run the deployment to restore keyring setup:
+```bash
+sudo bash /tmp/deploy-desktop.sh
+```
+
+---
+
+## Claude Code shows an error or doesn't work
+
+**Check 1: Is your API key set?**
+```bash
+echo $OPENROUTER_API_KEY
+```
+If this prints nothing, the key isn't set. Add it:
+```bash
+echo 'export OPENROUTER_API_KEY="your_key_here"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Check 2: Is Claude Code installed?**
+```bash
+claude --version
+```
+If you get "command not found", try:
+```bash
+source ~/.bashrc
+```
+If still not found, re-run the deployment to reinstall it.
+
+---
+
+## High memory usage or the desktop feels very slow
+
+**Check what's using memory:**
+```bash
+ps aux --sort=-%mem | head -10
+```
+
+**View memory trends from the monitor:**
+```bash
+bash scripts/analyze-session-logs.sh --memory
+```
+
+**Common causes and fixes:**
+- GNOME Shell can accumulate memory over long sessions — disconnect and reconnect to get a fresh session
+- Browser tabs are memory-heavy — close unused Chromium tabs
+- If memory is consistently above 80%, consider upgrading your server's RAM or switching to a lighter desktop (XFCE uses significantly less memory than GNOME)
+
+---
+
+## The crash monitor service isn't running
+
+```bash
+systemctl status xrdp-session-monitor.service
+```
+
+If it shows `inactive` or `failed`:
+```bash
+sudo systemctl restart xrdp-session-monitor.service
+```
+
+To check what went wrong:
+```bash
+journalctl -u xrdp-session-monitor.service -n 50
+```
+
+---
+
+## After running the deployment script, nothing changed on the server
+
+This can happen if the script was run without `sudo`, or if the script from `/tmp/` was out of date.
+
+**Always deploy with:**
+```bash
+sudo bash /tmp/deploy-desktop.sh
+```
+
+If you updated the scripts in the repository, make sure to re-upload them before running:
+```bash
+scp deploy-desktop.sh ubuntu@YOUR_SERVER_IP:/tmp/
+scp config.sh ubuntu@YOUR_SERVER_IP:/tmp/
+ssh ubuntu@YOUR_SERVER_IP
+sudo bash /tmp/deploy-desktop.sh
+```
+
+---
+
+## Running a full validation check
+
+After any deployment or change, you can run a comprehensive check of everything:
+
+```bash
+sudo bash tests/validate-install.sh
+```
+
+This checks that all services are running, all tools are installed, and configuration files are in place.
+
+---
+
+## Useful log locations
+
+| Log File | What to look for |
+|----------|-----------------|
+| `/var/log/xrdp-sesman.log` | RDP session errors and connection attempts |
+| `/var/log/xrdp/session-monitor.log` | Health check history |
+| `/var/log/xrdp/session-alerts.log` | Threshold alerts (memory, CPU) |
+| `~/.xsession-errors` | GNOME session startup errors |
+| `/tmp/deploy-desktop-*.log` | Output from the deployment script |
 
 ---
 
 ## Known Limitations
 
-- **Wayland not supported** - Uses Xvnc (X11 only), GNOME forced to X11 mode
-- **Single-user only** - Designed for desktopuser account
-- **No RDP audio** - Sound forwarding not configured
-- **Console conflict** - Physical session may conflict with RDP
+These are by design and currently have no fix:
 
-Run post-deployment validation:
-
-```bash
-bash tests/validate-install.sh
-```
+- **Wayland not supported** — the server uses Xvnc (X11 only); GNOME runs in X11 mode
+- **Single user only** — the deployment is configured for one desktop user
+- **No audio over RDP** — sound does not forward through the remote desktop connection
+- **No printer sharing** — printer redirection is not set up

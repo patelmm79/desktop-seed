@@ -1,275 +1,111 @@
-# GNOME Keyring Setup Guide
+# GNOME Keyring Guide
 
-## Overview
+## What Is the Keyring?
 
-GNOME Keyring provides secure credential storage for RDP sessions. This includes:
-- Password storage (libsecret)
-- SSH key management
-- X.509 certificate storage (PKCS#11)
-- Automatic credential unlocking
+The keyring is a secure password vault built into GNOME. Applications like VS Code use it to store sensitive data — GitHub tokens, API keys, saved passwords — so they don't have to ask you every time.
 
-## Installation Status
+On a normal Ubuntu server with no desktop, the keyring doesn't exist. When VS Code tries to use it, you see:
 
-✅ **Installed on 204.168.182.32:**
-- `gnome-keyring` v46.1-2ubuntu0.2
-- `libsecret-1-0` v0.21.4
-- `libpam-gnome-keyring` for PAM integration
+```
+OS keyring is not available for encryption
+```
+
+This deployment fixes that by starting the keyring daemon at the right point in the session startup sequence, before any applications launch. You don't need to configure anything — it just works.
+
+---
 
 ## How It Works
 
-### Session Startup
-When you connect to the RDP desktop:
+When you connect via RDP, the session startup sequence is:
 
-1. **startwm.sh** launches the GNOME session
-2. **gnome-keyring-daemon** starts automatically with:
-   - `secrets` component (libsecret credential storage)
-   - `pkcs11` component (certificate management)
-3. **D-Bus session** is established for IPC
-4. **Keyring** becomes available for applications
+1. `startwm.sh` starts running
+2. A **D-Bus session** is initialized (the messaging system desktop apps use to talk to each other)
+3. **`gnome-keyring-daemon` starts** inside the D-Bus session
+4. GNOME desktop loads — all apps inherit access to the keyring automatically
 
-### Credential Storage
-Applications can store and retrieve credentials using:
+The key detail is step 3: the keyring daemon must start *inside* the D-Bus session, not before it. That's what this deployment does correctly.
+
+---
+
+## Checking That It's Working
 
 ```bash
-# Command-line
-secret-tool store --label="My Password" app myapp username myuser
+# Should show the daemon process
+pgrep -af gnome-keyring-daemon
 
-# Python
-from gi.repository import Secret
-
-store = Secret.password_store_sync(
-    Secret.SCHEMA_COMPAT_NETWORK,
-    {"user": "myuser", "server": "example.com"},
-    Secret.COLLECTION_DEFAULT,
-    "My Password",
-    "password123"
-)
+# Should show a non-empty address (means D-Bus is active)
+echo $DBUS_SESSION_BUS_ADDRESS
 ```
 
-## Verification
+If `echo $DBUS_SESSION_BUS_ADDRESS` returns nothing, the session didn't start correctly. Disconnect and reconnect via Remote Desktop.
 
-### Check if Keyring is Running
+---
+
+## Storing and Retrieving Secrets (Command Line)
+
+The `secret-tool` command lets you store and retrieve secrets from the keyring.
+
+**Store a secret:**
 ```bash
-ps aux | grep gnome-keyring-daemon
+secret-tool store --label="My API Key" service myapp account myuser
+# You'll be prompted to enter the secret value
 ```
 
-Expected output:
-```
-/usr/bin/gnome-keyring-daemon --start --components=secrets,pkcs11
-```
-
-### Test Credential Storage
+**Retrieve a secret:**
 ```bash
-# Store a test credential
-secret-tool store --label="test" app test
-
-# Retrieve it
-secret-tool lookup app test
-
-# Delete it
-secret-tool clear app test
+secret-tool lookup service myapp account myuser
 ```
 
-### Check Keyring Components
+**Delete a secret:**
 ```bash
-# List available components
-gnome-keyring-daemon --components
-
-# Check which are running
-systemctl --user status gnome-keyring-daemon
+secret-tool clear service myapp account myuser
 ```
 
-## Configuration
-
-### Startup Script
-Location: `/etc/xrdp/keyring-setup.sh`
-
-This script:
-- Starts gnome-keyring-daemon if not running
-- Exports environment variables
-- Configures D-Bus communication
-
-### Session Integration
-Location: `/etc/xrdp/startwm.sh`
-
-The main startup script sources keyring initialization and:
-- Sets `GNOME_KEYRING_CONTROL` (keyring socket path)
-- Sets `DBUS_SESSION_BUS_ADDRESS` (D-Bus communication)
-- Exports `SSH_AUTH_SOCK` (SSH agent integration)
+---
 
 ## Troubleshooting
 
-### "OS keyring is not available" Error
+### "OS keyring is not available" keeps appearing
 
-This happens when:
-1. **D-Bus is not available** - Solution: Ensure `dbus-daemon` is running
-2. **Keyring daemon didn't start** - Solution: Check `/etc/xrdp/startwm.sh` includes keyring init
-3. **User session not initialized** - Solution: Wait a few seconds after login
+**Fix: Disconnect and reconnect via Remote Desktop.**
 
-### Fix: Restart Keyring
+This resets the session and restarts the keyring daemon. The error should not appear again in the new session.
+
+If it persists after reconnecting, check whether the daemon is running:
 ```bash
-# Kill any existing daemon
-pkill -f gnome-keyring-daemon
-
-# Restart D-Bus user session (if needed)
-systemctl --user restart dbus
-
-# The keyring will auto-start on next operation
+pgrep -af gnome-keyring-daemon
 ```
 
-### Check D-Bus Session
+If nothing is returned, the keyring daemon isn't starting. Try re-running the deployment:
 ```bash
-# Should show active D-Bus session
-echo $DBUS_SESSION_BUS_ADDRESS
-
-# Should show keyring socket
-echo $GNOME_KEYRING_CONTROL
+sudo bash /tmp/deploy-desktop.sh
 ```
 
-### Debug Mode
-Enable detailed logging:
-```bash
-# Run with debugging
-GNOME_KEYRING_DEBUG=1 gnome-keyring-daemon --start --foreground
+### Keyring errors after a long session
 
-# View syslog messages
-journalctl SYSLOG_IDENTIFIER=gnome-keyring -f
-```
+If you see keyring errors after working for several hours, disconnecting and reconnecting typically resolves it. The keyring runs in memory for the duration of a session; a fresh connection starts it cleanly.
 
-## SSH Key Management
-
-### Add SSH Key to Keyring
-```bash
-# Import existing key
-ssh-add ~/.ssh/id_rsa
-
-# The keyring will store the passphrase
-# and auto-unlock on subsequent uses
-```
-
-### Verify SSH Key is in Keyring
-```bash
-ssh-add -l
-```
-
-## Performance Notes
-
-- **First startup**: May take 2-3 seconds (daemon initialization)
-- **Subsequent operations**: < 100ms (cached)
-- **Memory overhead**: ~2-5 MB per session
-- **CPU**: Negligible (only active during credential operations)
+---
 
 ## Security Notes
 
-### Keyring Encryption
-- Credentials stored with **AES-128-CBC encryption**
-- Master password = login password (auto-unlock on login)
-- Keyrings can be encrypted independently
+- The keyring is unlocked automatically when you log in via RDP (your login password is the master password)
+- Credentials are stored encrypted in `~/.local/share/keyrings/`
+- The keyring is separate per user — other users on the same server cannot access your stored secrets
+- If you log out or disconnect, applications lose access to the keyring until you reconnect
 
-### In RDP Context
-- Credentials exist only in **session memory**
-- Lost when session ends (no persistence to disk by default)
-- Protected by D-Bus IPC restrictions
+---
 
-### Best Practices
-1. **Use strong passwords** - Keyring security depends on login password
-2. **Don't share sessions** - Each user gets separate keyring
-3. **Lock screen** - Automatically locks keyring when session locked
-4. **Backup important credentials** - Export sensitive keys separately
+## SSH Key Management
 
-## Integration with Applications
-
-### GNOME Applications
-These automatically use GNOME Keyring:
-- **GNOME Evolution** - Email/calendar credentials
-- **GNOME Online Accounts** - Web service credentials
-- **WiFi connections** - Network passwords
-- **VPN credentials** - Automatic unlock
-
-### Third-Party Apps
-For non-GNOME apps, use:
+The keyring also stores SSH key passphrases, so you don't have to type them every time:
 
 ```bash
-# Store credential
-secret-tool store --label="Label" key1 value1 key2 value2
-
-# Retrieve credential
-secret-tool lookup key1 value1 key2 value2
-
-# List all stored credentials
-secret-tool search --all
+ssh-add ~/.ssh/id_ed25519
+# Enter your passphrase once; it's stored in the keyring for the session
 ```
 
-### Python Integration
-```python
-from gi.repository import Secret
-
-# Store
-Secret.password_store_sync(
-    Secret.SCHEMA_COMPAT_NETWORK,
-    {"user": "name", "server": "host"},
-    Secret.COLLECTION_DEFAULT,
-    "label",
-    "password"
-)
-
-# Retrieve
-password = Secret.password_lookup_sync(
-    Secret.SCHEMA_COMPAT_NETWORK,
-    {"user": "name", "server": "host"}
-)
-```
-
-## References
-
-- GNOME Keyring: https://wiki.gnome.org/Projects/GnomeKeyring
-- libsecret: https://wiki.gnome.org/Projects/Libsecret
-- secret-tool: `man secret-tool`
-- D-Bus: https://dbus.freedesktop.org/
-
-## Support Commands
-
+To verify what keys are loaded:
 ```bash
-# Check if keyring is running
-systemctl --user status gnome-keyring-daemon 2>/dev/null || echo "Not available (OK in RDP)"
-
-# View keyring logs
-journalctl --user SYSLOG_IDENTIFIER=gnome-keyring -n 20
-
-# Test credential storage
-secret-tool store --label="test" app test username testuser
-secret-tool lookup app test username testuser
-secret-tool clear app test username testuser
-
-# Check environment
-echo "DBUS: $DBUS_SESSION_BUS_ADDRESS"
-echo "Keyring: $GNOME_KEYRING_CONTROL"
-
-# Monitor in real-time
-watch -n 1 'ps aux | grep gnome-keyring | grep -v grep'
+ssh-add -l
 ```
-
-## Additional Notes
-
-### Why Not Available in Initial Error?
-
-The error message appears because:
-1. **Root session** may not have full D-Bus setup
-2. **First login** - Keyring daemon still initializing
-3. **SSH/headless access** - No desktop environment context
-
-### Resolution Timeline
-
-- **T+0 sec**: User logs in via RDP
-- **T+0.5 sec**: startwm.sh starts gnome-keyring-daemon
-- **T+1 sec**: D-Bus session established
-- **T+2 sec**: Keyring fully available
-- **T+3 sec**: Applications can access credentials
-
-### Session Persistence
-
-- **Credentials**: Stored in memory only (cleared on logout)
-- **Keyrings**: Persist in `~/.local/share/keyrings/`
-- **Configuration**: In `~/.local/share/gnome-online-accounts/`
-
-The keyring system is fully integrated and will automatically handle credential storage for all GNOME applications and compatible third-party tools.
