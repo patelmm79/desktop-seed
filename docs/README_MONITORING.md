@@ -1,26 +1,20 @@
-# RDP Session Monitoring & Crash Recovery
+# Session Monitoring Reference
 
-## Quick Start
+The monitoring system watches your RDP desktop sessions continuously, alerting you to crashes and resource problems within 30 seconds rather than leaving you to discover them hours later.
 
-Check system health in one command:
+For the full guide including crash analysis and alert response, see [Crash Recovery Guide](crash-recovery-guide.md).
+
+---
+
+## Quick Health Check
 
 ```bash
-ssh root@204.168.182.32 'bash /tmp/analyze-session-logs.sh --summary'
+bash scripts/analyze-session-logs.sh --summary
 ```
 
-## What This Does
+---
 
-Automatically monitors your RDP desktop sessions for crashes and resource exhaustion. When something goes wrong, you'll know within 30 seconds instead of discovering it hours later.
-
-## Key Features
-
-✅ **Automatic Crash Detection** — Catches crashes within 30 seconds
-✅ **Memory Management** — Prevents runaway memory allocation (2GB limit)
-✅ **Resource Monitoring** — Tracks CPU and memory usage continuously
-✅ **Quick Analysis** — One-line commands to diagnose issues
-✅ **Complete Logging** — Full audit trail of all sessions
-
-## Four Quick Analysis Commands
+## The Four Analysis Commands
 
 ```bash
 # Overall health summary
@@ -32,61 +26,46 @@ bash scripts/analyze-session-logs.sh --crashes
 # Memory usage analysis
 bash scripts/analyze-session-logs.sh --memory
 
-# Session timeline (create/destroy history)
+# Session timeline (connect/disconnect history)
 bash scripts/analyze-session-logs.sh --timeline
 ```
 
-## How It Works
-
-### Session Startup (startwm.sh)
-- Sets memory limits to prevent GNOME from consuming unlimited memory
-- Logs session start with system metrics
-- Captures crash details on exit (exit code, signal, memory state)
-
-### Continuous Monitoring (xrdp-session-monitor service)
-- Runs every 30 seconds automatically
-- Checks memory usage (alerts at 80%)
-- Checks CPU usage (alerts at 75%)
-- Scans crash logs for issues
-- Writes alerts to syslog and log files
-
-### Analysis Tools (analyze-session-logs.sh)
-- Quick diagnostics for operators
-- Extracts crash details from logs
-- Shows memory trends
-- Timeline of session creation/termination
+---
 
 ## Real-Time Monitoring
 
-Watch monitoring as it happens:
-
 ```bash
-# All monitoring activity
+# Watch all monitoring activity
 tail -f /var/log/xrdp/session-monitor.log
 
-# Alerts only
+# Watch alerts only
 tail -f /var/log/xrdp/session-alerts.log
 
-# Service logs
+# Watch service output
 journalctl -u xrdp-session-monitor.service -f
 ```
 
-## Understanding the Previous Crash
+---
 
-**Crash Details:**
-- **Date:** March 29, 2026 at 07:50:04 UTC
-- **Uptime:** 3 hours before crash
-- **Display:** :11
-- **Exit Signal:** SIGKILL (signal 9)
-- **Status:** Unknown without monitoring
+## How It Works
 
-**What Changed:**
-With the new system, this crash would have been:
-- Detected within 30 seconds
-- Logged with full context (exit code, signal, memory snapshot)
-- Analyzed and reported to operators automatically
+### Session Startup (`startwm.sh`)
+- Sets a 2 GB per-process virtual memory limit (prevents GNOME from consuming unlimited RAM)
+- Logs session start time, available memory, and CPU count
+- Registers a crash handler — if the session exits unexpectedly, it logs the exit code, signal, and memory snapshot before closing
 
-**Impact:** 180x faster diagnosis (30 seconds vs 3 hours)
+### Continuous Monitoring (`xrdp-session-monitor` service)
+- Runs every 30 seconds, automatically, in the background
+- Checks memory usage (alerts at 80% of system RAM)
+- Checks CPU usage (alerts at 75%)
+- Scans xrdp logs for crash indicators
+- Writes results to log files and syslog
+
+### Analysis Tools (`analyze-session-logs.sh`)
+- Reads monitoring logs and formats them for human review
+- Extracts crash details, memory trends, and session timelines
+
+---
 
 ## Service Management
 
@@ -94,103 +73,74 @@ With the new system, this crash would have been:
 # Check status
 systemctl status xrdp-session-monitor.service
 
-# View logs
+# View service logs
 journalctl -u xrdp-session-monitor.service -n 50
 
 # Restart service
-systemctl restart xrdp-session-monitor.service
+sudo systemctl restart xrdp-session-monitor.service
 
-# Disable monitoring (if needed)
-sudo bash /tmp/session-monitor.sh --disable
+# Disable monitoring
+sudo systemctl stop xrdp-session-monitor.service
+sudo systemctl disable xrdp-session-monitor.service
 
 # Re-enable monitoring
-sudo bash /tmp/session-monitor.sh --enable
+sudo systemctl enable xrdp-session-monitor.service
+sudo systemctl start xrdp-session-monitor.service
 ```
 
-## Current System Status
-
-- **Service Status:** RUNNING ✓
-- **Monitoring Checks:** 244+ completed
-- **Last Check:** Just now
-- **Active Session:** Display :07 (1.6% memory, 0% CPU)
-- **System Memory:** 2.8 GB / 7.6 GB (37% used)
-- **Disk Usage:** 8% (healthy)
-- **CPU Load:** 0.11 (low)
-
-## Log File Locations
-
-```
-/var/log/xrdp/session-monitor.log     - All monitoring checks
-/var/log/xrdp/session-alerts.log      - Alerts only (threshold violations)
-/var/log/xrdp-sesman.log              - xrdp session manager log
-```
+---
 
 ## Thresholds
 
-Current settings:
-- **Memory Alert:** 80% of available memory
-- **CPU Alert:** 75% utilization
-- **Memory Limit (per-process):** 2GB virtual memory
+Default settings:
+- **Memory alert:** 80% of available system RAM
+- **CPU alert:** 75% utilization
+- **Per-process memory limit:** 2 GB virtual memory
 
-To adjust thresholds, edit:
+To adjust thresholds:
 ```bash
-/var/lib/xrdp/session-monitor-config.sh
+# Edit the config file
+nano /var/lib/xrdp/session-monitor-config.sh
+
+# Then restart the service
+sudo systemctl restart xrdp-session-monitor.service
 ```
 
-## Troubleshooting
+---
 
-### Monitor service not running
+## Log Files
+
+| File | Contents |
+|------|----------|
+| `/var/log/xrdp/session-monitor.log` | All health checks (every 30 seconds) |
+| `/var/log/xrdp/session-alerts.log` | Alerts only |
+| `/var/log/xrdp-sesman.log` | xrdp session manager log |
+
+---
+
+## Troubleshooting the Monitor
+
+### Service not running
 ```bash
 systemctl status xrdp-session-monitor.service
 journalctl -u xrdp-session-monitor.service -n 50
-systemctl restart xrdp-session-monitor.service
+sudo systemctl restart xrdp-session-monitor.service
 ```
 
-### No monitoring data
+### No data in logs
 ```bash
-# Run manual check
-bash /tmp/session-monitor.sh --test
+# Check log directory exists and is writable
+ls -la /var/log/xrdp/
 
-# Check service startup
-systemctl enable xrdp-session-monitor.service
+# Check the service is enabled (starts on boot)
+systemctl is-enabled xrdp-session-monitor.service
 ```
 
 ### High memory alerts
 ```bash
-# See what's using memory
+# See what processes are using the most memory
 ps aux --sort=-%mem | head -10
 
-# Analyze memory trends
+# View memory trends
 bash scripts/analyze-session-logs.sh --memory
 ```
-
-## Files in This Repository
-
-```
-etc/xrdp/startwm.sh                    - Enhanced session startup script
-scripts/session-monitor.sh             - Monitoring service installer
-scripts/analyze-session-logs.sh        - Analysis tool
-docs/crash-recovery-guide.md           - Complete documentation
-DEPLOYMENT_SUMMARY.md                  - Implementation details
-README_MONITORING.md                   - This file
-```
-
-## Next Steps
-
-1. **Monitor for 24-48 hours** to establish baseline
-2. **Review memory trends** using `analyze-session-logs.sh --memory`
-3. **Identify problematic applications** from the logs
-4. **Adjust thresholds** if needed based on your workload
-
-## Questions?
-
-See the full guide: `docs/crash-recovery-guide.md`
-
-## Implementation Status
-
-✅ Complete and operational
-✅ All components deployed
-✅ All tests passing
-✅ Ready for production
-
-**The previous 3-hour undetected crash scenario is now impossible.**
