@@ -437,6 +437,13 @@ This deployment has been tested on the following infrastructure:
 ### Other Providers Tested
 - <!-- TODO: Add other cloud providers if tested (AWS, DigitalOcean, etc.) -->
 
+### Known Limitations
+- **Wayland not supported** - This deployment uses Xvnc which only supports X11. GNOME will be forced to use X11.
+- **Single-user only** - Designed for a single desktop user (desktopuser). Multi-user support not implemented.
+- **No sound via RDP** - Audio forwarding over RDP is not configured.
+- **No printer sharing** - Printer redirection over RDP not set up.
+- **Console session conflict** - If a user is logged into the console (physical display), RDP may have issues.
+
 ### Verified Working
 - GNOME Desktop via RDP (xrdp + Xvnc)
 - VS Code

@@ -8,6 +8,46 @@ set -euo pipefail
 SCRIPT_VERSION="1.0.0"
 LOG_FILE="/tmp/deploy-desktop-$(date +%Y%m%d-%H%M%S).log"
 
+# Dry run mode - preview what would be installed without actually installing
+DRY_RUN=false
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run|--preview)
+            DRY_RUN=true
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --dry-run, --preview  Show what would be installed without installing"
+            echo "  --help, -h            Show this help message"
+            echo ""
+            exit 0
+            ;;
+    esac
+done
+
+# Helper function for dry-run mode
+would_install() {
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would install: $1"
+    fi
+}
+
+install_if_not_exists() {
+    local cmd="$1"
+    local name="$2"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        if ! command -v "$cmd" &> /dev/null; then
+            log_info "[DRY RUN] Would install: $name"
+        else
+            log_info "[DRY RUN] Already installed: $name"
+        fi
+        return 0
+    fi
+    return 1  # Return 1 to continue with actual install in normal mode
+}
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1155,13 +1195,47 @@ validate_deployment() {
         log_warn "  - dbus-launch not found"
     fi
 
-    # Verify gnome-session is available
-    if command -v gnome-session &> /dev/null; then
-        log_info "  - gnome-session is installed"
+    # Verify gnome-shell is available (used by startwm.sh)
+    if command -v gnome-shell &> /dev/null; then
+        log_info "  - gnome-shell is installed"
     else
-        log_error "  - gnome-session NOT found - Desktop will not start"
+        log_error "  - gnome-shell NOT found - Desktop will not start"
         return 1
     fi
+
+    # Check for Xvnc (the RDP display server)
+    if command -v Xvnc &> /dev/null; then
+        log_info "  - Xvnc is installed"
+    else
+        log_warn "  - Xvnc not found - RDP may not work"
+    fi
+
+    # Check desktop user exists
+    if id "desktopuser" &> /dev/null; then
+        log_info "  - desktopuser account exists"
+    else
+        log_warn "  - desktopuser account not found"
+    fi
+
+    # Verify xrdp configuration
+    if [ -f /etc/xrdp/xrdp.ini ]; then
+        if grep -q "Xvnc" /etc/xrdp/xrdp.ini 2>/dev/null; then
+            log_info "  - xrdp configured to use Xvnc"
+        else
+            log_warn "  - xrdp may not be properly configured"
+        fi
+    else
+        log_warn "  - xrdp.ini not found"
+    fi
+
+    # Summary of installed components
+    log_info "  - Installed components:"
+    command -v code &> /dev/null && log_info "      * VS Code"
+    command -v claude &> /dev/null && log_info "      * Claude Code"
+    command -v gh &> /dev/null && log_info "      * GitHub CLI"
+    command -v chromium &> /dev/null && log_info "      * Chromium"
+    command -v bun &> /dev/null && log_info "      * Bun"
+    command -v openclaw &> /dev/null && log_info "      * OpenCLAW"
 
     log_info "Deployment validation complete"
 }
@@ -1209,6 +1283,32 @@ show_summary() {
 
 # Main function
 main() {
+    # Handle dry-run mode
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "========================================="
+        echo "  DRY RUN MODE - No changes will be made"
+        echo "========================================="
+        echo ""
+        log_info "This would install the following components:"
+        log_info "  - GNOME Desktop"
+        log_info "  - xrdp (RDP server)"
+        log_info "  - Visual Studio Code"
+        log_info "  - Claude Code"
+        log_info "  - OpenRouter CLI"
+        log_info "  - Claude Code Router"
+        log_info "  - Chromium Browser"
+        log_info "  - GitHub CLI"
+        log_info "  - Bun runtime"
+        log_info "  - OpenCLAW"
+        log_info "  - Session monitoring"
+        log_info "  - GNOME extensions"
+        echo ""
+        log_info "To run this deployment:"
+        log_info "  sudo bash deploy-desktop.sh"
+        echo ""
+        exit 0
+    fi
+
     log_info "Starting Remote Desktop Deployment v$SCRIPT_VERSION"
     log_info "Log file: $LOG_FILE"
 

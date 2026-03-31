@@ -145,7 +145,16 @@ The deployment script now includes `validate_deployment()` which checks:
 - startwm.sh is executable
 - GDK_BACKEND=x11 is configured
 - dbus-launch is available
-- gnome-session/shell is installed
+- gnome-shell is installed
+
+---
+
+## Known Limitations
+
+- **Wayland not supported** - Uses Xvnc (X11 only), GNOME forced to X11 mode
+- **Single-user only** - Designed for desktopuser account
+- **No RDP audio** - Sound forwarding not configured
+- **Console conflict** - Physical session may conflict with RDP
 
 Run post-deployment validation:
 
