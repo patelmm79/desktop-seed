@@ -2,7 +2,33 @@
 
 Automated setup for a full Linux desktop environment on a remote Ubuntu server — accessible from anywhere via Remote Desktop (RDP). Designed for developers who want a cloud-based workstation pre-loaded with VS Code, AI tools, and a browser, without doing manual installation steps.
 
-**Status:** Production-ready. Tested on Ubuntu 20.04, 22.04, and 24.04.
+**Status:** Validated for personal/developer use. Tested on Ubuntu 20.04, 22.04, and 24.04.
+
+---
+
+## Tested On: Hetzner CPX32
+
+This setup has been validated on a **[Hetzner CPX32](https://www.hetzner.com/cloud/)** cloud instance — a solid mid-range option for this workload:
+
+| Spec | Value |
+|------|-------|
+| **CPU** | 4 vCPUs (AMD) |
+| **RAM** | 8 GB |
+| **Storage** | 160 GB SSD |
+| **Price** | max. $12.59/month ($0.0202/hour) |
+| **Location** | Choice of EU/US datacenters |
+
+### Why This Hardware?
+
+The use case driving this project: running **~6 simultaneous VS Code instances**, each with Claude Code active, while connecting to remote Discord instances via [OpenClaw](https://openclaw.app/) — all through a single RDP session.
+
+**What this solves:**
+
+- **Local laptop performance** — Running 6 VS Code windows with AI assistants was grinding the local machine to a halt. Offloading to a cloud server with dedicated RAM and CPU eliminates the bottleneck entirely.
+- **Always-on availability** — The laptop would frequently restart overnight (updates, lid-close sleep). The cloud server stays up 24/7, so work-in-progress is never interrupted.
+- **Single coordination interface** — All VS Code instances, Claude Code sessions, and Discord connections run on one remote desktop, accessible from any device — useful for managing multiple coding workstreams on the go.
+
+The CPX32 handles this load comfortably at idle (~3 GB RAM used), with headroom for heavier workloads. Check current pricing at [hetzner.com/cloud](https://www.hetzner.com/cloud/regular-performance).
 
 ---
 
@@ -40,9 +66,9 @@ It also handles the painful parts automatically:
 
 Before you start, you need:
 
-1. **An Ubuntu server** — a cloud VM (AWS EC2, DigitalOcean, Hetzner, etc.) running Ubuntu 20.04 or newer
+1. **An Ubuntu server** — a cloud VM running Ubuntu 20.04 or newer
    - Minimum: 2 CPU cores, 4 GB RAM, 30 GB storage
-   - Recommended: 4 CPU cores, 8 GB RAM for comfortable use
+   - Recommended: **[Hetzner CPX32](https://www.hetzner.com/cloud/regular-performance)** — 4 vCPUs, 8 GB RAM, 160 GB SSD, max. $12.59/month. Comfortably runs 6+ VS Code instances with Claude Code.
 2. **SSH access** to that server (a username and either a password or SSH key)
 3. **Your server's public IP address**
 4. **An OpenRouter API key** — get one free at [openrouter.ai](https://openrouter.ai/) (needed for Claude Code)
