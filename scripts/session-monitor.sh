@@ -209,6 +209,70 @@ alert() {
     logger -t "xrdp-session-monitor" -p warning "$alert_type: $message"
 }
 
+# === GitHub Issue Creation ===
+
+create_github_issue() {
+    local severity="$1"
+    local title="$2"
+    local body="$3"
+    local labels="$4"
+
+    # Check if GitHub integration is enabled
+    if [[ "$AUTO_ISSUE_ENABLED" != "true" ]]; then
+        return 0
+    fi
+
+    # Check required configuration
+    if [[ -z "$GITHUB_REPO" ]] || [[ -z "$GITHUB_TOKEN" ]]; then
+        return 0
+    fi
+
+    # Check severity threshold
+    local severity_level=0
+    case "$severity" in
+        critical) severity_level=3 ;;
+        warning) severity_level=2 ;;
+        info) severity_level=1 ;;
+        *) severity_level=0 ;;
+    esac
+
+    local threshold_level=0
+    case "$ISSUE_SEVERITY_THRESHOLD" in
+        critical) threshold_level=3 ;;
+        warning) threshold_level=2 ;;
+        info) threshold_level=1 ;;
+        *) threshold_level=0 ;;
+    esac
+
+    if [[ "$severity_level" -lt "$threshold_level" ]]; then
+        return 0
+    fi
+
+    # Deduplication: check if similar issue created recently
+    local current_time=$(date +%s)
+    local time_since_last=$((current_time - LAST_ISSUE_TIME))
+    if [[ "$time_since_last" -lt "$ISSUE_DEDUP_WINDOW" ]]; then
+        return 0
+    fi
+
+    # Update last issue time
+    LAST_ISSUE_TIME=$current_time
+
+    # Create issue using gh CLI
+    local issue_url
+    issue_url=$(gh issue create \
+        --repo "$GITHUB_REPO" \
+        --title "[$severity] $title" \
+        --body "$body" \
+        --label "$labels" 2>&1) || {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to create GitHub issue: $issue_url" >> "$ALERT_LOG"
+        return 1
+    }
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] GitHub issue created: $issue_url" >> "$ALERT_LOG"
+    return 0
+}
+
 monitor_crash_logs() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
