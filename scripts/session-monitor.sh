@@ -275,6 +275,7 @@ create_github_issue() {
 
 monitor_crash_logs() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local has_critical=false
 
     # Check for recent crash indicators in xrdp logs
     if [ -f /var/log/xrdp/xrdp-sesman.log ]; then
@@ -285,6 +286,34 @@ monitor_crash_logs() {
                 echo "[$timestamp] === Recent xrdp-sesman Errors ==="
                 echo "$recent_errors"
             } >> "$ALERT_LOG" 2>&1
+
+            # Create GitHub issue for crash errors
+            if echo "$recent_errors" | grep -qi "crashed\|segfault\|segmentation"; then
+                has_critical=true
+
+                local body="## Error Details
+- **Type:** Session crash
+- **Timestamp:** $timestamp
+- **Process:** xrdp-sesman
+
+## Recent Errors
+\`\`\`
+$recent_errors
+\`\`\`
+
+## System State
+- Memory: $(free -h | grep Mem | awk '{print $3 " used / " $7 " available"})
+- Uptime: $(uptime -p)
+
+## Log Files
+- Session log: \`/var/log/xrdp/xrdp-sesman.log\`
+- Monitor log: \`$MONITOR_LOG\`
+
+## Analysis Notes
+Please check sesman logs for full crash details."
+
+                create_github_issue "critical" "Session crash at $timestamp" "$body" "desktop,auto-detected,critical"
+            fi
         fi
     fi
 }
