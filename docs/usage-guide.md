@@ -168,6 +168,37 @@ chromium-browser
 
 ---
 
+## Using Terraform and Terragrunt
+
+### Terraform
+Terraform is installed and ready to use. Run `terraform --version` to verify:
+
+```bash
+terraform --version
+```
+
+### Terragrunt
+Terragrunt is also installed. It's a thin wrapper that provides extra tools for working with Terraform:
+
+```bash
+terragrunt --version
+```
+
+### Getting Started with IaC
+1. Create a directory for your Terraform code: `mkdir ~/terraform && cd ~/terraform`
+2. Create a `.tf` file (e.g., `main.tf`)
+3. Run `terraform init` to initialize providers
+4. Run `terraform plan` to preview changes
+5. Run `terraform apply` to create resources
+
+### Cloud Provider Credentials
+For AWS, Azure, or GCP, you'll need to configure credentials:
+- **AWS:** `aws configure` (requires AWS CLI)
+- **Azure:** `az login` (requires Azure CLI)
+- **GCP:** `gcloud auth login` (requires Google Cloud SDK)
+
+---
+
 ## Desktop Tips
 
 ### Keyboard shortcuts

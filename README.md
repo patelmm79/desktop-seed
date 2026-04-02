@@ -97,6 +97,8 @@ The CPX32 handles this load comfortably at idle (~3 GB RAM used), with headroom 
 | [**GNOME Keyring**](https://wiki.gnome.org/Projects/GnomeKeyring) | Secure credential/password storage | Prevents "OS keyring not available" errors in VS Code |
 | [**Cascade Windows**](https://extensions.gnome.org/extension/1267/cascade-windows/) | Window arrangement extension | Tiles and organizes windows on the desktop |
 | **Session Monitor** | Background crash detection service | Alerts within 30 seconds if the desktop session crashes |
+| [**Terraform**](https://www.terraform.io/) | Infrastructure as Code tool | Define and provision infrastructure with code |
+| [**Terragrunt**](https://terragrunt.gruntwork.io/) | Terraform wrapper | Manage multiple environments with less duplication |
 
 ---
 

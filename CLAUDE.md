@@ -15,6 +15,7 @@ The deployment script (`deploy-desktop.sh`) installs and configures:
 - **Desktop Environment:** GNOME Desktop (touch-friendly, tablet-optimized)
 - **RDP Server:** xrdp with Xvnc for Windows/Android Remote Desktop access
 - **Development Tools:** VS Code, Claude Code, OpenRouter CLI, Chromium
+- **Infrastructure:** Terraform, Terragrunt for Infrastructure-as-Code
 - **Reliability:** Automatic crash detection (30 sec response), memory management
 - **Security:** GNOME Keyring for secure credential storage
 - **Extensions:** Cascade Windows tool for window management
