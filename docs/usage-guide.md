@@ -152,6 +152,22 @@ openclaw --version
 
 > **Note:** OpenCLAW requires Node.js, which is installed automatically during deployment. If the command is not found, try `source ~/.bashrc` or open a new terminal.
 
+### OpenCLAW Configuration
+
+Default settings are deployed from `config/openclaw-defaults.json` during setup. The config file is located at `~/.openclaw/openclaw.json`.
+
+**Key settings:**
+- `reserveTokensFloor: 20000` - Keep 20k tokens for context
+- `maxConcurrent: 4` - Run up to 4 concurrent agents
+- `compaction.mode: safeguard` - Only compact when necessary
+
+To view your current config:
+```bash
+cat ~/.openclaw/openclaw.json
+```
+
+To update defaults, edit `config/openclaw-defaults.json` in the repo and redeploy.
+
 ---
 
 ## Using [Chromium Browser](https://www.chromium.org/chromium-projects/)

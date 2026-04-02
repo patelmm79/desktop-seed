@@ -183,3 +183,36 @@ ps aux --sort=-%mem | head -10
 # View memory trends
 bash scripts/analyze-session-logs.sh --memory
 ```
+
+---
+
+## Session Cleanup
+
+A background job runs every 5 minutes to clean up orphaned processes from old RDP sessions.
+
+```bash
+# View cleanup logs
+tail -f /var/log/xrdp/session-cleanup.log
+
+# Run cleanup manually (dry-run)
+sudo bash /tmp/cleanup-sessions.sh --dry-run
+
+# Run cleanup manually (for real)
+sudo bash /tmp/cleanup-sessions.sh
+```
+
+### How it works
+- Identifies the most recent Xvnc session (highest PID) as the active session
+- Kills orphaned processes from old sessions: `xrdp-chansrv`, `gnome-shell`, `code`, `chrome`, `Xvnc`
+- Preserves all processes in the active session
+- Logs actions to `/var/log/xrdp/session-cleanup.log`
+
+### Process patterns targeted
+| Pattern | Description |
+|---------|-------------|
+| `xrdp-chansrv` | RDP channel service |
+| `pw-cli.*xrdp` | xrdp process wrapper |
+| `gnome-shell` | GNOME shell (orphaned) |
+| `code` | VS Code instances |
+| `chrome` | Chromium instances |
+| `Xvnc` | Old VNC servers |
