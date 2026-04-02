@@ -1006,6 +1006,8 @@ install_terraform() {
         tg_version=$(terragrunt --version 2>/dev/null | head -1)
         log_info "Terragrunt already installed: $tg_version"
     fi
+
+    return 0
 }
 
 # Set up environment variables and system-wide configuration
