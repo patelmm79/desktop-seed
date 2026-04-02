@@ -226,13 +226,13 @@ alert() {
 - **Message:** $message
 
 ## System State
-- Memory: $(free -h | grep Mem | awk '{print $3 " used / " $7 " available"})
+- Memory: $(free -h | grep Mem | awk '{print $3 " used / " $7 " available"}')
 - CPU Load: $(uptime | awk -F'load average:' '{print $2}')
 - Uptime: $(uptime -p)
 
 ## Log Files
-- Monitor log: \`$MONITOR_LOG\`
-- Alert log: \`$ALERT_LOG\`
+- Monitor log: \`\`$MONITOR_LOG\`\`\`
+- Alert log: \`\`$ALERT_LOG\`\`\`
 
 ## Analysis Notes
 Check system resources and processes."
@@ -334,12 +334,12 @@ $recent_errors
 \`\`\`
 
 ## System State
-- Memory: $(free -h | grep Mem | awk '{print $3 " used / " $7 " available"})
+- Memory: $(free -h | grep Mem | awk '{print $3 " used / " $7 " available"}')
 - Uptime: $(uptime -p)
 
 ## Log Files
-- Session log: \`/var/log/xrdp/xrdp-sesman.log\`
-- Monitor log: \`$MONITOR_LOG\`
+- Session log: \`\`/var/log/xrdp/xrdp-sesman.log\`\`
+- Monitor log: \`\`$MONITOR_LOG\`\`
 
 ## Analysis Notes
 Please check sesman logs for full crash details."
