@@ -1204,6 +1204,56 @@ setup_monitoring() {
     else
         log_warn "Session monitor script not found in scripts/session-monitor.sh"
     fi
+
+    # Setup session cleanup cron job
+    if [ -f "scripts/cleanup-sessions.sh" ]; then
+        cp scripts/cleanup-sessions.sh /tmp/cleanup-sessions.sh
+        chmod +x /tmp/cleanup-sessions.sh
+
+        # Create cron entry to run cleanup every 5 minutes
+        CRON_ENTRY="*/5 * * * * /tmp/cleanup-sessions.sh >> /var/log/xrdp/session-cleanup.log 2>&1"
+
+        # Add to crontab if not already present
+        if ! crontab -l 2>/dev/null | grep -q "cleanup-sessions.sh"; then
+            (crontab -l 2>/dev/null || true; echo "$CRON_ENTRY") | crontab -
+            log_info "Session cleanup cron job installed (runs every 5 minutes)"
+        else
+            log_info "Session cleanup cron job already configured"
+        fi
+    else
+        log_warn "Cleanup script not found in scripts/cleanup-sessions.sh"
+    fi
+}
+
+# Setup OpenCLAW configuration
+setup_openclaw_config() {
+    log_info "Setting up OpenCLAW configuration..."
+
+    # Only configure if OpenCLAW is installed
+    if ! command -v openclaw &> /dev/null; then
+        log_warn "OpenCLAW not installed - skipping config"
+        return 0
+    fi
+
+    OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
+    OPENCLAW_CONFIG_FILE="$OPENCLAW_CONFIG_DIR/openclaw.json"
+
+    # Create config directory if it doesn't exist
+    mkdir -p "$OPENCLAW_CONFIG_DIR"
+    chmod 700 "$OPENCLAW_CONFIG_DIR"
+
+    # Copy default config from repo
+    if [ -f "config/openclaw-defaults.json" ]; then
+        cp config/openclaw-defaults.json "$OPENCLAW_CONFIG_FILE"
+        chmod 600 "$OPENCLAW_CONFIG_FILE"
+        log_info "OpenCLAW configured from defaults"
+    else
+        log_warn "OpenCLAW defaults not found - skipping config"
+        return 0
+    fi
+
+    chmod 600 "$OPENCLAW_CONFIG_FILE"
+    log_info "OpenCLAW configured with optimized settings"
 }
 
 # Setup GitHub Issues integration
@@ -1438,6 +1488,7 @@ main() {
     create_desktop_shortcuts
     setup_keyring
     setup_monitoring
+    setup_openclaw_config
     setup_github_issues
     setup_gnome_extensions
     validate_deployment
