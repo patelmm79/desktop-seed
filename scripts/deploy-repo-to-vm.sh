@@ -8,10 +8,10 @@ set -euo pipefail
 REPO="${1:-}"
 BRANCH="${2:-main}"
 DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
-DISCORD_CHANNEL_ID="1491175562348331209"
 
 # Logging
 log_info() { echo "[INFO] $*"; }
+log_warn() { echo "[WARN] $*" >&2; }
 log_error() { echo "[ERROR] $*" >&2; }
 
 # Validate input
@@ -61,7 +61,7 @@ EOF
 
     curl -s -X POST "$DISCORD_WEBHOOK_URL" \
         -H "Content-Type: application/json" \
-        -d "$payload" || true
+        -d "$payload" || log_warn "Failed to send Discord notification"
 }
 
 # Main deployment logic
@@ -79,6 +79,12 @@ main() {
 
     owner=$(echo "$parsed" | cut -d'/' -f1)
     repo=$(echo "$parsed" | cut -d'/' -f2)
+
+    # Validate branch name to prevent shell injection
+    if [[ ! "$BRANCH" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        log_error "Invalid branch name: $BRANCH"
+        exit 1
+    fi
 
     local target_dir="$HOME/repos/$owner/$repo"
 
