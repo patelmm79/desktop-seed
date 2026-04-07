@@ -1,0 +1,24 @@
+{
+  "name": "Deploy Repo to VM",
+  "description": "Clone a GitHub repository to the VM and notify Discord when ready",
+  "id": "deploy_repo_to_vm",
+  "version": "1.0.0",
+  "category": "devops",
+  "parameters": {
+    "repo": {
+      "type": "string",
+      "description": "GitHub repository (format: owner/repo or full URL)",
+      "required": true
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch to clone",
+      "default": "main",
+      "required": false
+    }
+  },
+  "environment": {
+    "DISCORD_WEBHOOK_URL": "Discord webhook URL for notifications",
+    "DISCORD_CHANNEL_ID": "1491175562348331209"
+  }
+}
