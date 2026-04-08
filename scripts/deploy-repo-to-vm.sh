@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO="${1:-}"
 BRANCH="${2:-main}"
-DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
+DISCORD_CHANNEL_ID="${DISCORD_CHANNEL_ID:-1491175562348331209}"
 
 # Logging
 log_info() { echo "[INFO] $*"; }
@@ -35,33 +35,24 @@ parse_repo() {
     fi
 }
 
-# Send Discord notification
+# Send Discord notification via OpenCLAW
 send_discord() {
     local message="$1"
-    local color="${2:-3066993}"  # Green default
 
-    if [[ -z "$DISCORD_WEBHOOK_URL" ]]; then
-        log_info "Discord webhook not configured, skipping notification"
+    if ! command -v openclaw &> /dev/null; then
+        log_warn "OpenCLAW not installed, skipping Discord notification"
         log_info "Message: $message"
         return 0
     fi
 
-    local payload
-    payload=$(cat <<EOF
-{
-  "embeds": [{
-    "title": "Repository Deployment",
-    "description": "$message",
-    "color": $color,
-    "timestamp": "$(date -Iseconds)"
-  }]
-}
-EOF
-)
+    # Default Discord channel from skill
+    local discord_channel="${DISCORD_CHANNEL_ID:-1491175562348331209}"
 
-    curl -s -X POST "$DISCORD_WEBHOOK_URL" \
-        -H "Content-Type: application/json" \
-        -d "$payload" || log_warn "Failed to send Discord notification"
+    if openclaw message send --channel discord --target "$discord_channel" --message "$message" 2>&1; then
+        log_info "Discord notification sent"
+    else
+        log_warn "Failed to send Discord notification via OpenCLAW"
+    fi
 }
 
 # Main deployment logic
@@ -72,7 +63,7 @@ main() {
     local parsed
     parsed=$(parse_repo "$REPO")
     if [[ -z "$parsed" ]]; then
-        send_discord "❌ Invalid repository format: $REPO. Use owner/repo or full GitHub URL" "15158332"
+        send_discord "❌ Invalid repository format: $REPO. Use owner/repo or full GitHub URL"
         log_error "Invalid repository format: $REPO"
         exit 1
     fi
@@ -91,7 +82,7 @@ main() {
     # Check if already exists (idempotency)
     if [[ -d "$target_dir" ]]; then
         local message="ℹ️ Repository already deployed: $owner/$repo\nLocation: $target_dir"
-        send_discord "$message" "9807273"
+        send_discord "ℹ️ Repository already deployed: $owner/$repo - Location: $target_dir"
         log_info "$message"
         exit 0
     fi
@@ -103,11 +94,11 @@ main() {
     log_info "Cloning $owner/$repo (branch: $BRANCH) to $target_dir..."
     if git clone --depth 1 -b "$BRANCH" "https://github.com/$owner/$repo.git" "$target_dir" 2>&1; then
         local message="✅ Repository deployed to VM: $owner/$repo ($BRANCH)\nLocation: $target_dir"
-        send_discord "$message" "3066993"
+        send_discord "✅ Repository deployed to VM: $owner/$repo ($BRANCH) - Location: $target_dir"
         log_info "$message"
     else
         local message="❌ Failed to deploy $owner/$repo: Clone failed"
-        send_discord "$message" "15158332"
+        send_discord "❌ Failed to deploy $owner/$repo: Clone failed"
         log_error "$message"
         exit 1
     fi
