@@ -1590,11 +1590,30 @@ EOF
         log_info "Token ages tracking file created"
     fi
 
-    # Add cron job if not already present
-    local cron_job="0 9 * * 1 $script_path"
-    if ! crontab -l 2>/dev/null | grep -q "check-token-age.sh"; then
+    # Add cron job with configurable rotation periods via environment variables
+    local api_key_days="${TOKEN_ROTATION_DAYS_API_KEY:-90}"
+    local webhook_days="${TOKEN_ROTATION_DAYS_WEBHOOK:-180}"
+    local alert_threshold="${TOKEN_ALERT_THRESHOLD_DAYS:-80}"
+
+    # Create wrapper script that exports env vars before calling the checker
+    local wrapper_path="$HOME/.local/bin/check-token-age-wrapper.sh"
+    cat > "$wrapper_path" << EOF
+#!/bin/bash
+export TOKEN_ROTATION_DAYS_API_KEY=$api_key_days
+export TOKEN_ROTATION_DAYS_WEBHOOK=$webhook_days
+export TOKEN_ALERT_THRESHOLD_DAYS=$alert_threshold
+export DISCORD_CHANNEL_ID="${DISCORD_CHANNEL_ID:-}"
+exec $script_path "\$@"
+EOF
+    chmod +x "$wrapper_path"
+
+    local cron_job="0 9 * * 1 $wrapper_path"
+    if ! crontab -l 2>/dev/null | grep -q "check-token-age-wrapper.sh"; then
         (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
         log_info "Token rotation cron job added (every Monday at 9 AM)"
+        log_info "  API key rotation: $api_key_days days"
+        log_info "  Webhook rotation: $webhook_days days"
+        log_info "  Alert threshold: $alert_threshold days"
     else
         log_info "Token rotation cron job already exists"
     fi

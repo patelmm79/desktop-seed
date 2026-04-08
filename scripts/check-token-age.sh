@@ -6,7 +6,11 @@ set -euo pipefail
 
 TOKEN_AGES_FILE="$HOME/.config/desktop-seed/token-ages.json"
 DISCORD_CHANNEL_ID="${DISCORD_CHANNEL_ID:-}"
-ALERT_THRESHOLD_DAYS=80
+
+# Configurable rotation periods (in days) via environment variables
+TOKEN_ROTATION_DAYS_API_KEY="${TOKEN_ROTATION_DAYS_API_KEY:-90}"
+TOKEN_ROTATION_DAYS_WEBHOOK="${TOKEN_ROTATION_DAYS_WEBHOOK:-180}"
+TOKEN_ALERT_THRESHOLD_DAYS="${TOKEN_ALERT_THRESHOLD_DAYS:-80}"
 
 # Logging
 log_info() { echo "[INFO] $*"; }
@@ -65,8 +69,17 @@ EOF
     local alert_needed=false
     local alert_message="🔔 **Token Age Alert**\n\n"
 
-    # Check each token
-    for token in openrouter_api_key discord_bot_token discord_cve_webhook_url; do
+    # Check each token with its configured rotation period
+    local token_config=(
+        "openrouter_api_key:$TOKEN_ROTATION_DAYS_API_KEY"
+        "discord_bot_token:$TOKEN_ROTATION_DAYS_API_KEY"
+        "discord_cve_webhook_url:$TOKEN_ROTATION_DAYS_WEBHOOK"
+    )
+
+    for config in "${token_config[@]}"; do
+        local token="${config%:*}"
+        local rotation_days="${config#*:}"
+
         local rotation_date
         rotation_date=$(jq -r ".$token // empty" "$TOKEN_AGES_FILE" 2>/dev/null) || continue
 
@@ -77,11 +90,11 @@ EOF
         local age_days
         age_days=$(days_since "$rotation_date")
 
-        log_info "$token: $age_days days old"
+        log_info "$token: $age_days days old (rotation: $rotation_days days)"
 
-        if [[ $age_days -ge $ALERT_THRESHOLD_DAYS ]]; then
+        if [[ $age_days -ge $TOKEN_ALERT_THRESHOLD_DAYS ]]; then
             alert_needed=true
-            alert_message+="• **$token**: $age_days days (exceeds $ALERT_THRESHOLD_DAYS day threshold)\n"
+            alert_message+="• **$token**: $age_days days old (threshold: $TOKEN_ALERT_THRESHOLD_DAYS, rotate at: $rotation_days)\n"
         fi
     done
 
