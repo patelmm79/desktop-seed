@@ -2,26 +2,34 @@
   "$schema": "https://docs.openclaw.ai/schema.json",
   "meta": {
     "lastTouchedVersion": "2026.3.28",
-    "lastTouchedAt": "2026-04-06T00:00:00Z"
+    "lastTouchedAt": "2026-04-07T22:00:00Z"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "openrouter": {
+        "apiKey": { "source": "env", "id": "OPENROUTER_API_KEY" }
+      }
+    }
   },
   "agents": {
     "defaults": {
       "model": "openrouter/minimax/MiniMax-M2.7",
       "compaction": {
         "mode": "default",
-        "reserveTokens": 40000,
-        "keepRecentTokens": 8000,
-        "reserveTokensFloor": 40000,
-        "maxHistoryShare": 0.25
+        "reserveTokens": 20000,
+        "keepRecentTokens": 4000,
+        "reserveTokensFloor": 20000,
+        "maxHistoryShare": 0.1
       },
-      "maxConcurrent": 2,
+      "maxConcurrent": 4,
       "subagents": {
         "maxConcurrent": 4
       }
     }
   },
   "messages": {
-    "ackReactionScope": "group-mentions"
+    "ackReactionScope": "all"
   },
   "commands": {
     "native": "auto",
@@ -34,7 +42,7 @@
       "enabled": true,
       "token": "REPLACE_WITH_DISCORD_BOT_TOKEN",
       "groupPolicy": "open",
-      "streaming": "off"
+      "streaming": true
     }
   },
   "gateway": {
