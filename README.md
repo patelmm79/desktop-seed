@@ -225,6 +225,18 @@ gh pr list
 openclaw   # connect to remote Discord instances
 ```
 
+#### OpenCLAW Environment Setup
+OpenCLAW requires API keys to function. Add to your `.env` file or `~/.bashrc`:
+
+```bash
+export OPENROUTER_API_KEY="your_openrouter_key"
+export DISCORD_BOT_TOKEN="your_discord_bot_token"
+export DISCORD_ALLOWLIST_IDS="your_discord_user_id"
+```
+
+- Get an OpenRouter key at [openrouter.ai](https://openrouter.ai/)
+- Discord bot tokens and setup are documented in [docs/OPENCLAW_CONFIG.md](./docs/OPENCLAW_CONFIG.md)
+
 ### Chromium Browser
 Type `chromium-browser` in a terminal, or find it in Applications → Internet.
 

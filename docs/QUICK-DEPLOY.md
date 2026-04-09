@@ -19,8 +19,7 @@ You need:
 ```bash
 git clone https://github.com/patelmm79/linux-desktop-seed.git
 cd linux-desktop-seed
-scp deploy-desktop.sh ubuntu@YOUR_SERVER_IP:/tmp/
-scp config.sh ubuntu@YOUR_SERVER_IP:/tmp/
+scp deploy-desktop.sh config.sh ubuntu@YOUR_SERVER_IP:/tmp/
 ```
 
 **Step 2 — Run the installer** (run on the server via SSH):
@@ -56,6 +55,22 @@ claude --version   # should print a version number
 ```
 
 > **⚠️ WARNING:** Never commit `.env` to version control! It's already in `.gitignore`.
+
+### OpenCLAW Setup (Optional)
+
+If you installed OpenCLAW (Discord AI client), add these to your `.env` file:
+
+```bash
+# Required for OpenCLAW
+OPENROUTER_API_KEY=your_openrouter_key_here
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_ALLOWLIST_IDS=your_discord_user_id
+```
+
+Get your OpenRouter key at [openrouter.ai](https://openrouter.ai/).
+Get Discord tokens from the [OpenCLAW documentation](https://openclaw.app/docs).
+
+For full OpenCLAW configuration details, see [docs/OPENCLAW_CONFIG.md](./OPENCLAW_CONFIG.md).
 
 ---
 
