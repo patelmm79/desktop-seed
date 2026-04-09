@@ -13,3 +13,9 @@ tests/test-usability.sh
 .env.local
 .env.*.local
 *.env
+
+# OpenCLAW runtime configs (contain live tokens)
+# On VM: ~/.openclaw/openclaw.json
+# Template: config/openclaw-defaults.json
+config/openclaw-ideal-config.json
+scripts/openclaw-ideal-config.json
