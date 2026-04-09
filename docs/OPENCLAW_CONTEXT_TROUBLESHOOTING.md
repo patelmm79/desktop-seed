@@ -1,6 +1,7 @@
 # OpenCLAW Context Management Troubleshooting Log
 
-**Last Updated:** 2026-04-08
+**OpenCLAW Version:** v2026.3.28 (MiniMax compatible)
+**Last Updated:** 2026-04-09
 **Purpose:** Document context management issues and fixes for future reference
 
 ---
@@ -116,3 +117,108 @@ ssh hetzner "jq '.agents.defaults.compaction = {\"mode\": \"default\", \"reserve
 
 - `config/openclaw-defaults.json` - Repository defaults (should match working VM config)
 - `~/.openclaw/openclaw.json` - Running config on VM (hetzner)
+
+---
+
+## Discord Integration Issues (2026-04-08)
+
+### Problem
+Discord messages to intelligent-feed channel (1491445641581301760) not being received/processed by OpenCLAW gateway.
+
+### Errors Encountered
+
+1. **Config validation failures**
+   - Minimal configs kept failing validation
+   - Missing required fields: `models.providers.openrouter.baseUrl`, `apiKey`, `models`
+   - "bindings.0: Invalid input"
+
+2. **Root config conflict**
+   - Running `openclaw` commands as root created `/root/.openclaw/openclaw.json`
+   - Gateway restart checked root's config, not desktopuser's
+   - Root config had invalid format causing all restarts to fail
+
+3. **Gateway status misleading**
+   - `openclaw gateway status` showed "stopped" even when running
+   - RPC probe failed but HTTP server was responding on port 18789
+   - Systemd service kept restarting/terminating gateway
+
+### Solution Applied
+
+1. Removed root config: `rm /root/.openclaw/openclaw.json`
+2. Restored working config from April 2 backup (`openclaw.json.bak.4`)
+3. Updated Discord token to current valid token
+4. Added bindings for channel routing:
+   ```json
+   "bindings": [
+     {
+       "agentId": "main",
+       "match": {
+         "channel": "discord",
+         "accountId": "1491445641581301760"
+       }
+     }
+   ]
+   ```
+5. Disabled systemd service and ran gateway directly
+
+### deploy-desktop.sh Fix
+Updated wrapper to use desktopuser's config path instead of `$HOME`:
+```bash
+# Before (broken)
+OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
+
+# After (fixed)
+OPENCLAW_CONFIG="/home/desktopuser/.openclaw/openclaw.json"
+```
+
+Also fixed `setup_openclaw_config()` function to use:
+```bash
+OPENCLAW_CONFIG_DIR="/home/desktopuser/.openclaw"
+```
+
+### Key Takeaways
+
+1. **Never run openclaw commands as root** - Creates conflicting config
+2. **Restore from known-working backup** - Config format validation is strict; old working config is safer than minimal new ones
+3. **Verify gateway is actually running** - Check port 18789 response, not just `gateway status`
+4. **Systemd can cause instability** - Running gateway directly without systemd service is more reliable
+
+### Working Config Structure
+```json
+{
+  "meta": { "lastTouchedVersion": "2026.3.28" },
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "MTQ4...",
+      "groupPolicy": "allowlist",
+      "allowFrom": ["user:1162240440322502656"],
+      "guilds": {
+        "1485047825967480862": {
+          "requireMention": false,
+          "users": ["1162240440322502656"]
+        }
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "main",
+      "match": {
+        "channel": "discord",
+        "accountId": "1491445641581301760"
+      }
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": { "primary": "openrouter/minimax/minimax-m2.7" }
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "auth": { "mode": "token", "token": "..." }
+  }
+}
+```

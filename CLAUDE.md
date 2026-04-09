@@ -8,6 +8,8 @@ This file provides guidance to Claude Code when working with this repository.
 
 **Key Achievement:** Reduced crash detection time from 3+ hours to **< 30 seconds** with full forensic data capture.
 
+**OpenCLAW Version:** v2026.3.28 (MiniMax compatible) - See `deploy-desktop.sh` line 1133 for version pinning.
+
 ## What This Project Does
 
 The deployment script (`deploy-desktop.sh`) installs and configures:
