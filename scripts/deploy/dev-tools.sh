@@ -342,17 +342,33 @@ install_terraform() {
         return 0
     fi
 
-    # Add HashiCorp repository
-    if ! grep -q "hashicorp" /etc/apt/sources.list.d/* 2>/dev/null; then
-        wget -q https://apt.releases.hashicorp.com/gpg -O /usr/share/keyrings/hashicorp-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
-        apt-get update -y
+    # Remove any broken repo first
+    rm -f /etc/apt/sources.list.d/hashicorp.list /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+    # Try to download GPG key with better error handling
+    if wget -q --timeout=10 https://apt.releases.hashicorp.com/gpg -O /usr/share/keyrings/hashicorp-archive-keyring.gpg 2>/dev/null; then
+        if [[ -s /usr/share/keyrings/hashicorp-archive-keyring.gpg ]]; then
+            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
+            apt-get update -y 2>/dev/null || true
+        else
+            log_warn "HashiCorp GPG key is empty, skipping Terraform installation"
+            return 0
+        fi
+    else
+        log_warn "Could not download HashiCorp GPG key, skipping Terraform installation"
+        return 0
     fi
 
-    # Install Terraform and Terragrunt
-    if ! apt-get install -y terraform terragrunt; then
-        log_error "Failed to install Terraform"
-        return 1
+    # Install Terraform and Terragrunt (if repo was added successfully)
+    if [[ -f /etc/apt/sources.list.d/hashicorp.list ]]; then
+        if ! apt-get install -y terraform terragrunt 2>/dev/null; then
+            log_warn "Could not install Terraform from official repo"
+            rm -f /etc/apt/sources.list.d/hashicorp.list
+            return 0
+        fi
+    else
+        log_warn "HashiCorp repository not available, skipping Terraform"
+        return 0
     fi
 
     log_info "Terraform and Terragrunt installed successfully"
@@ -368,18 +384,36 @@ install_gcloud() {
         return 0
     fi
 
-    # Add Google Cloud SDK repository
-    if ! grep -q "google-cloud-sdk" /etc/apt/sources.list.d/* 2>/dev/null; then
-        echo "deb [signed-by=/usr/share/keyrings/google-cloud-sdk-archive-keyring.gpg] https://packages.cloud.google.com/apt $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list
+    # Remove any broken repo first
+    rm -f /etc/apt/sources.list.d/google-cloud-sdk.list /usr/share/keyrings/google-cloud-sdk-archive-keyring.gpg
 
-        wget -q https://packages.cloud.google.com/apt/doc/apt-key.gpg -O /usr/share/keyrings/google-cloud-sdk-archive-keyring.gpg
-        apt-get update -y
+    # Add Google Cloud SDK repository - with better error handling
+    if ! grep -q "google-cloud-sdk" /etc/apt/sources.list.d/* 2>/dev/null; then
+        # Try to download GPG key
+        if wget -q --timeout=10 https://packages.cloud.google.com/apt/doc/apt-key.gpg -O /usr/share/keyrings/google-cloud-sdk-archive-keyring.gpg 2>/dev/null; then
+            if [[ -s /usr/share/keyrings/google-cloud-sdk-archive-keyring.gpg ]]; then
+                echo "deb [signed-by=/usr/share/keyrings/google-cloud-sdk-archive-keyring.gpg] https://packages.cloud.google.com/apt $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null
+                apt-get update -y 2>/dev/null || true
+            else
+                log_warn "Google Cloud SDK GPG key is empty, skipping installation"
+                return 0
+            fi
+        else
+            log_warn "Could not download Google Cloud SDK GPG key, skipping installation"
+            return 0
+        fi
     fi
 
-    # Install Google Cloud SDK
-    if ! apt-get install -y google-cloud-sdk; then
-        log_error "Failed to install Google Cloud SDK"
-        return 1
+    # Install Google Cloud SDK (if repo was added successfully)
+    if [[ -f /etc/apt/sources.list.d/google-cloud-sdk.list ]]; then
+        if ! apt-get install -y google-cloud-sdk 2>/dev/null; then
+            log_warn "Could not install Google Cloud SDK from official repo"
+            rm -f /etc/apt/sources.list.d/google-cloud-sdk.list
+            return 0
+        fi
+    else
+        log_warn "Google Cloud SDK repository not available, skipping installation"
+        return 0
     fi
 
     log_info "Google Cloud SDK installed successfully"

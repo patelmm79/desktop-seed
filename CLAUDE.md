@@ -339,6 +339,7 @@ All user-facing docs in `docs/` folder:
 | `DEPLOYMENT_SUMMARY.md` | Architects | High-level design |
 | `FINAL_SUMMARY.md` | Technical | Detailed implementation |
 | `README_MONITORING.md` | Operators | Monitoring operations |
+| `openclaw-config-management.md` | Operators | OpenCLAW config lockdown procedures |
 
 ## Git Workflow
 

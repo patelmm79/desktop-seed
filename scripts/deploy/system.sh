@@ -189,7 +189,7 @@ install_xrdp() {
 
     # Copy custom startwm.sh
     if [[ -f "$(dirname "$SCRIPT_DIR")/../etc/xrdp/startwm.sh" ]]; then
-        cp "$(dirname "$SCRIPT_DIR")/../etc/xrdp/startwm.sh" /etc/xrdp/startwm.sh
+        cp "$(dirname "$SCRIPT_DIR")/../etc/xrdp/startwm.sh" /etc/xrdp/startwm.sh 2>/dev/null || true
         chmod +x /etc/xrdp/startwm.sh
         log_info "Installed custom startwm.sh"
     fi

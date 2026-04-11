@@ -114,10 +114,11 @@ setup_monitoring() {
 
     # Copy monitoring script
     local monitor_script="/usr/local/bin/session-monitor.sh"
-    local repo_script="$(dirname "$SCRIPT_DIR")/scripts/session-monitor.sh"
+    local repo_script="$SCRIPT_DIR/scripts/session-monitor.sh"
 
     if [[ -f "$repo_script" ]]; then
-        cp "$repo_script" "$monitor_script"
+        # Convert CRLF to LF for Linux compatibility
+        sed 's/\r$//' "$repo_script" > "$monitor_script"
         chmod +x "$monitor_script"
         log_info "Installed session monitor script"
     else
@@ -127,37 +128,16 @@ setup_monitoring() {
 
     # Copy analysis script
     local analyze_script="/usr/local/bin/analyze-session-logs.sh"
-    local repo_analyze="$(dirname "$SCRIPT_DIR")/scripts/analyze-session-logs.sh"
+    local repo_analyze="$SCRIPT_DIR/scripts/analyze-session-logs.sh"
 
     if [[ -f "$repo_analyze" ]]; then
-        cp "$repo_analyze" "$analyze_script"
+        # Convert CRLF to LF for Linux compatibility
+        sed 's/\r$//' "$repo_analyze" > "$analyze_script"
         chmod +x "$analyze_script"
         log_info "Installed session analysis script"
     fi
 
-    # Create systemd service
-    local service_file="/etc/systemd/system/xrdp-session-monitor.service"
-    cat > "$service_file" << EOF
-[Unit]
-Description=XRDP Session Monitor
-After=graphical.target
-
-[Service]
-Type=simple
-User=root
-ExecStart=$monitor_script
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=graphical.target
-EOF
-
-    # Reload systemd and enable service
-    systemctl daemon-reload
-    systemctl enable xrdp-session-monitor.service 2>/dev/null || true
-
-    # Create config file
+    # Create config file before enabling service
     local config_dir="/var/lib/xrdp"
     mkdir -p "$config_dir"
     cat > "$config_dir/session-monitor-config.sh" << 'EOF'
@@ -173,6 +153,14 @@ EOF
     mkdir -p /var/log/xrdp
     touch /var/log/xrdp/session-monitor.log
     touch /var/log/xrdp/session-alerts.log
+
+    # Install the monitoring service using the script's built-in installer
+    log_info "Installing session monitor service..."
+    if "$monitor_script" --enable 2>&1; then
+        log_info "Session monitoring service installed"
+    else
+        log_warn "Failed to install session monitoring service"
+    fi
 
     log_info "Session monitoring configured"
 }

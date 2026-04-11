@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO="${1:-}"
 BRANCH="${2:-main}"
-DISCORD_CHANNEL_ID="${DISCORD_CHANNEL_ID:-1491175562348331209}"
+DISCORD_CHANNEL_ID="${DISCORD_CHANNEL_ID:-}"
 
 # Logging
 log_info() { echo "[INFO] $*"; }
@@ -35,24 +35,77 @@ parse_repo() {
     fi
 }
 
-# Send Discord notification via OpenCLAW
+# Send Discord notification via OpenCLAW or direct API
 send_discord() {
     local message="$1"
+    local channel_id="${DISCORD_CHANNEL_ID:-}"
 
-    if ! command -v openclaw &> /dev/null; then
-        log_warn "OpenCLAW not installed, skipping Discord notification"
-        log_info "Message: $message"
-        return 0
+    # If no channel provided, try to get it from repo name
+    if [[ -z "$channel_id" ]]; then
+        # Use repo name as channel name (e.g., "intelligent-feed")
+        local channel_name
+        channel_name=$(echo "$REPO" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+        channel_id=$(get_channel_id_by_name "$channel_name")
     fi
 
-    # Default Discord channel from skill
-    local discord_channel="${DISCORD_CHANNEL_ID:-1491175562348331209}"
-
-    if openclaw message send --channel discord --target "$discord_channel" --message "$message" 2>&1; then
-        log_info "Discord notification sent"
-    else
-        log_warn "Failed to send Discord notification via OpenCLAW"
+    # If channel lookup failed, fail explicitly - don't guess
+    if [[ -z "$channel_id" ]]; then
+        log_error "Could not find Discord channel for repo '$REPO'. Please provide DISCORD_CHANNEL_ID explicitly."
+        return 1
     fi
+
+    # Try OpenCLAW first
+    if command -v openclaw &> /dev/null; then
+        if openclaw message send --channel discord --target "$channel_id" --message "$message" 2>&1; then
+            log_info "Discord notification sent via OpenCLAW"
+            return 0
+        fi
+    fi
+
+    # Fall back to direct Discord API
+    local discord_token
+    discord_token=$(jq -r '.channels.discord.token' ~/.openclaw/openclaw.json 2>/dev/null || true)
+
+    if [[ -n "$discord_token" ]]; then
+        if curl -s -X POST "https://discord.com/api/v10/channels/$channel_id/messages" \
+            -H "Authorization: Bot $discord_token" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"$message\"}" > /dev/null 2>&1; then
+            log_info "Discord notification sent via API"
+            return 0
+        fi
+    fi
+
+    log_warn "Failed to send Discord notification"
+    log_info "Message: $message"
+}
+
+# Look up channel ID by name via Discord API (case-insensitive)
+get_channel_id_by_name() {
+    local channel_name="$1"
+    local discord_token guild_id
+
+    discord_token=$(jq -r '.channels.discord.token' ~/.openclaw/openclaw.json 2>/dev/null || true)
+    guild_id=$(jq -r '.channels.discord.guilds | keys[0]' ~/.openclaw/openclaw.json 2>/dev/null || true)
+
+    if [[ -z "$discord_token" || -z "$guild_id" ]]; then
+        echo ""
+        return
+    fi
+
+    # Lowercase the search term in bash
+    local channel_name_lower
+    channel_name_lower=$(echo "$channel_name" | tr '[:upper:]' '[:lower:]')
+
+    # Get channels and find matching ID using process substitution
+    while IFS='|' read -r id name; do
+        name_lower=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+        if [[ "$name_lower" == "$channel_name_lower" ]]; then
+            echo "$id"
+            return 0
+        fi
+    done < <(curl -s "https://discord.com/api/v10/guilds/$guild_id/channels" \
+        -H "Authorization: Bot $discord_token" | jq -r '.[] | .id + "|" + .name' 2>/dev/null) || true
 }
 
 # Main deployment logic
@@ -77,7 +130,14 @@ main() {
         exit 1
     fi
 
-    local target_dir="$HOME/repos/$owner/$repo"
+    # Determine target directory - use desktopuser's home if root (OpenCLAW runs as desktopuser)
+local target_user_home
+if [[ "$(id -u)" == "0" ]] && id desktopuser &>/dev/null; then
+    target_user_home="/home/desktopuser"
+else
+    target_user_home="$HOME"
+fi
+local target_dir="$target_user_home/repos/$owner/$repo"
 
     # Check if already exists (idempotency)
     if [[ -d "$target_dir" ]]; then
